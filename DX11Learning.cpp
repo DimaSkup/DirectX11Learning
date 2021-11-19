@@ -8,51 +8,54 @@ class MyInput : public InputListener
 public:
 	bool KeyPressed(const KeyEvent &arg)
 	{
-		printf("key press %c\n", arg.wc);
+		printf("key pressed: %c\n", arg.wc);
 		return false;
 	}
+
 	bool MouseMove(const MouseEvent &arg)
 	{
-		printf("mouse %d - %d\n", arg.x, arg.y);
+		printf("mouse move: %d : %d\n", arg.x, arg.y);
 		return false;
 	}
 
 	bool MousePressed(const MouseEventClick &arg)
 	{
 		if (arg.btn == MOUSE_LEFT)
-			printf("mouse button %s was pressed at %d - %d\n", "MOUSE_LEFT", arg.x, arg.y);
-		return false;
-	}
-
-	bool MouseWheel(const MouseEventWheel &arg)
-	{
-		printf("mouse wheel: %d\n", arg.wheel);
-		return false;
+		{
+			printf("mouse click - %s a %d : %d\n", "MOUSE_LEFT", arg.x, arg.y);
+			return false;
+		}
 	}
 };
 
 class MyRender : public Render
 {
 public:
-	bool Init(HWND nwnd) { return true; }
-	bool Draw() { return true; }
-	void Close() {}
+	bool Init(HWND hWnd) { return true; }
+	bool Draw(void) { return true; }
+	void Close(void) {};
 };
 
 int main()
 {
+	MyInput* inputListener = new MyInput();
+	MyRender* render = new MyRender();
+
+
 	Framework framework;
 
-	MyRender *render = new MyRender();
-	MyInput *input = new MyInput();
-
+	
+	
 	framework.SetRender(render);
 	framework.Init();
-	framework.AddInputListener(input);
+	framework.AddInputListener(inputListener);
+	
+	
 
 	framework.Run();
 
 	framework.Close();
+
 
 	return 0;
 }
