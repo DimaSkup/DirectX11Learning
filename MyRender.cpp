@@ -17,7 +17,6 @@ bool MyRender::Init(HWND hWnd)
 
 	RECT rc;
 	GetClientRect(hWnd, &rc);
-
 	UINT width = rc.right - rc.left;
 	UINT height = rc.bottom - rc.top;
 
@@ -31,7 +30,7 @@ bool MyRender::Init(HWND hWnd)
 	{
 		D3D_DRIVER_TYPE_HARDWARE,
 		D3D_DRIVER_TYPE_WARP,
-		D3D_DRIVER_TYPE_REFERENCE,
+		D3D_DRIVER_TYPE_SOFTWARE,
 	};
 
 	UINT numDriverTypes = ARRAYSIZE(driverTypes);
@@ -46,9 +45,10 @@ bool MyRender::Init(HWND hWnd)
 	UINT numFeatureLevels = ARRAYSIZE(featureLevels);
 
 
+
 	// ----------------------------------------------------
 	// Filling in of the swap chain description
-
+	
 	DXGI_SWAP_CHAIN_DESC scd;
 	ZeroMemory(&scd, sizeof(DXGI_SWAP_CHAIN_DESC));		// clear up the structure
 
@@ -63,7 +63,7 @@ bool MyRender::Init(HWND hWnd)
 	scd.SampleDesc.Count = 1;
 	scd.SampleDesc.Quality = 0;
 	scd.Windowed = TRUE;
-
+	
 
 	// -----------------------------------------------------
 	// Creation of ID3D11Device and IDXGISwapChain
@@ -94,35 +94,45 @@ bool MyRender::Init(HWND hWnd)
 
 
 
-	// ----------------------------------------------------
-	// Initialization of the render target
+
+	// ----------------------------------------------------------
+	// Initialization of the render target view
 
 	ID3D11Texture2D* pBackBuffer = nullptr;
 	hr = m_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
 	if (FAILED(hr))
-		return false;
+	{
+		Log::Get()->Err("MyRender::Init(): Can't get buffer 0 of the swap chain")
+	}
 
 	hr = m_pd3dDevice->CreateRenderTargetView(pBackBuffer, NULL, &m_pRenderTargetView);
 	_RELEASE(pBackBuffer);
 	if (FAILED(hr))
+	{
+		Log::Get()->Err("MyRender::Init(): Can't create the render target view");
 		return false;
+	}
 
 	m_pImmediateContext->OMSetRenderTargets(1, &m_pRenderTargetView, nullptr);
 
 
 
-	// --------------------------------------------------------
-	// Initialization of the viewport
-	
-	D3D11_VIEWPORT viewPort;
-	viewPort.Width = static_cast<FLOAT>(width);
-	viewPort.Height = static_cast<FLOAT>(height);
-	viewPort.MinDepth = 0.0f;
-	viewPort.MaxDepth = 1.0f;
-	viewPort.TopLeftX = 0;
-	viewPort.TopLeftY = 0;
-	
-	m_pImmediateContext->RSSetViewports(1, &viewPort);
+	// -----------------------------------------------------------
+	// Initialization of the viewporn
+
+	D3D11_VIEWPORT viewport;
+	ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
+
+	viewport.Width = static_cast<FLOAT>(width);
+	viewport.Height = static_cast<FLOAT>(height);
+	viewport.MinDepth = 0.0f;
+	viewport.MaxDepth = 1.0f;
+	viewport.TopLeftX = 0;
+	viewport.TopLeftY = 0;
+
+	m_pImmediateContext->RSSetViewports(1, &viewport);
+
+
 }
 
 bool MyRender::Draw(void)
