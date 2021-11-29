@@ -1,157 +1,172 @@
 #include "stdafx.h"
 #include "MyRender.h"
+#include <xnamath.h>
+#include <d3dcompiler.h>
 
-MyRender::MyRender(void)
+struct SimpleVertex
 {
-	m_driverType = D3D_DRIVER_TYPE_NULL;
-	m_featureLevel = D3D_FEATURE_LEVEL_11_0;
-	m_pd3dDevice = nullptr;
-	m_pImmediateContext = nullptr;
-	m_pSwapChain = nullptr;
-	m_pRenderTargetView = nullptr;
+	XMFLOAT3 Pox;
+};
+
+MyRender::MyRender()
+{
+	Log::Get()->Debug("MyRender::MyRender()");
+	m_pVertexShader = nullptr;
+	m_pPixelShader = nullptr;
+	m_pVertexLayout = nullptr;
+	m_pVertexBuffer = nullptr;
+}
+
+HRESULT MyRender::m_compileShaderFromFile(WCHAR* Filename,
+											LPCSTR EntryPoint,
+											LPCSTR ShaderModel,
+											ID3DBlob** ppBlobOut)
+{
+	HRESULT hr = S_OK;
+
+	hr = D3DX11CompileFromFile(Filename, NULL, NULL,
+								EntryPoint, ShaderModel, 0, 0,
+								NULL, ppBlobOut, NULL, NULL);
+
+	return hr;
 }
 
 bool MyRender::Init(HWND hWnd)
 {
 	HRESULT hr = S_OK;
 
-	RECT rc;
-	GetClientRect(hWnd, &rc);
-	UINT width = rc.right - rc.left;
-	UINT height = rc.bottom - rc.top;
 
-	UINT createDeviceFlags = 0;
+	// ----------------------------- THE VERTEX SHADER ----------------------
 
-#ifdef _DEBUG
-	createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
-#endif
-
-	D3D_DRIVER_TYPE driverTypes[] =
-	{
-		D3D_DRIVER_TYPE_HARDWARE,
-		D3D_DRIVER_TYPE_WARP,
-		D3D_DRIVER_TYPE_SOFTWARE,
-	};
-
-	UINT numDriverTypes = ARRAYSIZE(driverTypes);
-
-	D3D_FEATURE_LEVEL featureLevels[] =
-	{
-		D3D_FEATURE_LEVEL_11_0,
-		D3D_FEATURE_LEVEL_10_1,
-		D3D_FEATURE_LEVEL_10_0,
-	};
-
-	UINT numFeatureLevels = ARRAYSIZE(featureLevels);
-
-
-
-	// ----------------------------------------------------
-	// Filling in of the swap chain description
-	
-	DXGI_SWAP_CHAIN_DESC scd;
-	ZeroMemory(&scd, sizeof(DXGI_SWAP_CHAIN_DESC));		// clear up the structure
-
-	scd.BufferCount = 1;
-	scd.BufferDesc.Width = width;
-	scd.BufferDesc.Height = height;
-	scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	scd.BufferDesc.RefreshRate.Numerator = 60;
-	scd.BufferDesc.RefreshRate.Denominator = 1;
-	scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	scd.OutputWindow = hWnd;
-	scd.SampleDesc.Count = 1;
-	scd.SampleDesc.Quality = 0;
-	scd.Windowed = TRUE;
-	
-
-	// -----------------------------------------------------
-	// Creation of ID3D11Device and IDXGISwapChain
-
-	for (UINT driverTypeIndex = 0; driverTypeIndex < numDriverTypes; driverTypeIndex++)
-	{
-		m_driverType = driverTypes[driverTypeIndex];
-
-		hr = D3D11CreateDeviceAndSwapChain(NULL,
-			m_driverType,
-			NULL,
-			createDeviceFlags,
-			featureLevels,
-			numFeatureLevels,
-			D3D11_SDK_VERSION,
-			&scd,
-			&m_pSwapChain,
-			&m_pd3dDevice,
-			&m_featureLevel,
-			&m_pImmediateContext);
-
-		if (SUCCEEDED(hr))
-			break;
-	}
-
-	if (FAILED(hr))
-		return false;
-
-
-
-
-	// ----------------------------------------------------------
-	// Initialization of the render target view
-
-	ID3D11Texture2D* pBackBuffer = nullptr;
-	hr = m_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
+	// Compiling of the vertex shader
+	ID3DBlob* pVSBlob = nullptr;
+	hr = m_compileShaderFromFile(L"shader.fx", "VS", "vs_4_0", &pVSBlob);
 	if (FAILED(hr))
 	{
-		Log::Get()->Err("MyRender::Init(): Can't get buffer 0 of the swap chain")
-	}
-
-	hr = m_pd3dDevice->CreateRenderTargetView(pBackBuffer, NULL, &m_pRenderTargetView);
-	_RELEASE(pBackBuffer);
-	if (FAILED(hr))
-	{
-		Log::Get()->Err("MyRender::Init(): Can't create the render target view");
+		Log::Get()->Err("MyRender::Init(): can't compile file shader.fx. "
+			"Please, run this program from the folder, which contains this file");
 		return false;
 	}
 
-	m_pImmediateContext->OMSetRenderTargets(1, &m_pRenderTargetView, nullptr);
+	// Creation of the vertex shader
+	hr = m_pd3dDevice->CreateVertexShader(pVSBlob->GetBufferPointer(), 
+											pVSBlob->GetBufferSize(),
+											NULL,
+											&m_pVertexShader);
+	if (FAILED(hr))
+	{
+		Log::Get()->Err("MyRender::Init(): can't create the vertex shader");
+		_RELEASE(pVSBlob);
+		return false;
+	}
 
 
 
-	// -----------------------------------------------------------
-	// Initialization of the viewporn
+	// Initialization of the input layout description
+	D3D11_INPUT_ELEMENT_DESC layout[] =
+	{
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+	};
+	UINT numElements = ARRAYSIZE(layout);
 
-	D3D11_VIEWPORT viewport;
-	ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
+	// creationf of the input layout
+	hr = m_pd3dDevice->CreateInputLayout(layout, numElements, 
+											pVSBlob->GetBufferPointer(), 
+											pVSBlob->GetBufferSize(), 
+											&m_pVertexLayout);
 
-	viewport.Width = static_cast<FLOAT>(width);
-	viewport.Height = static_cast<FLOAT>(height);
-	viewport.MinDepth = 0.0f;
-	viewport.MaxDepth = 1.0f;
-	viewport.TopLeftX = 0;
-	viewport.TopLeftY = 0;
+	_RELEASE(pVSBlob);
+	if (FAILED(hr))
+	{
+		Log::Get()->Err("MyRender::Init(): can't create the input layout");
+		return false;
+	}
 
-	m_pImmediateContext->RSSetViewports(1, &viewport);
+	// setting of the input layout
+	m_pImmediateContext->IASetInputLayout(m_pVertexLayout);
 
 
-}
 
-bool MyRender::Draw(void)
-{
-	float ClearColor[4] = { 0.0f, 0.125f, 0.3f, 1.0f };
 
-	m_pImmediateContext->ClearRenderTargetView(m_pRenderTargetView, ClearColor);
-	m_pSwapChain->Present(0, 0);
+
+	// --------------------- THE PIXEL SHADER ---------------------------
+	ID3DBlob* pPSBlob = NULL;
+	hr = m_compileShaderFromFile(L"shader.fx", "PS", "ps_4_0", &pPSBlob);
+	if (FAILED(hr))
+	{
+		Log::Get()->Err("MyRender::Init():  can't compile file shader.fx. "
+			"Please, run this program from the folder, which contains this file");
+		return false;
+	}
+
+	// Creation of the pixel shader
+	hr = m_pd3dDevice->CreatePixelShader(pPSBlob->GetBufferPointer(), 
+											pPSBlob->GetBufferSize(), 
+											NULL,
+											&m_pPixelShader);
+	_RELEASE(pPSBlob);
+	if (FAILED(hr))
+	{
+		Log::Get()->Err("MyRender::Init(): can't create the pixel shader");
+		return false;
+	}
+
+
+
+
+	// --------------------- THE MODEL DATA ---------------------------
+	// Creation of the vertex buffer
+	SimpleVertex vertices[] =
+	{
+		XMFLOAT3(0.0f, 0.5f, 0.5f),
+		XMFLOAT3(0.5f, -0.5f, 0.5f),
+		XMFLOAT3(-0.5f, -0.5f, 0.5f),
+	};
+
+
+	D3D11_BUFFER_DESC bd;
+	ZeroMemory(&bd, sizeof(D3D11_BUFFER_DESC));
+
+	bd.Usage = D3D11_USAGE_DEFAULT;
+	bd.ByteWidth = sizeof(SimpleVertex) * 3;
+	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bd.CPUAccessFlags = 0;
+
+	D3D11_SUBRESOURCE_DATA data;
+	ZeroMemory(&data, sizeof(data));
+	data.pSysMem = vertices;
+
+	hr = m_pd3dDevice->CreateBuffer(&bd, &data, &m_pVertexBuffer);
+	if (FAILED(hr))
+	{
+		Log::Get()->Err("MyRender::Init(): can't create the vertex buffer");
+		return false;
+	}
+
+	// Setting of the vertex buffer
+	UINT stride = sizeof(SimpleVertex);
+	UINT offset = 0;
+	m_pImmediateContext->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
+
+	// setting of the primitive topology
+	m_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	return true;
 }
 
-void MyRender::Close(void)
+bool MyRender::Draw()
 {
-	if (m_pImmediateContext)
-		m_pImmediateContext->ClearState();
+	m_pImmediateContext->VSSetShader(m_pVertexShader, NULL, 0);
+	m_pImmediateContext->PSSetShader(m_pPixelShader, NULL, 0);
+	m_pImmediateContext->Draw(3, 0);
 
-	_RELEASE(m_pRenderTargetView);
-	_RELEASE(m_pSwapChain);
-	_RELEASE(m_pImmediateContext);
-	_RELEASE(m_pd3dDevice);
+	return true;
+}
+
+void MyRender::Close()
+{
+	_RELEASE(m_pVertexBuffer);
+	_RELEASE(m_pVertexLayout);
+	_RELEASE(m_pVertexShader);
+	_RELEASE(m_pPixelShader);
 }

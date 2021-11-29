@@ -8,9 +8,12 @@ int main()
 	MyRender* render = new MyRender();
 
 	framework.SetRender(render);
-	framework.Init();
+	if (framework.Init())
+	{
+		framework.Run();
+	}
 
-	framework.Run();
+	
 
 	framework.Close();
 
