@@ -1,11 +1,14 @@
-// last revising at 01.12.21
-
 #include "stdafx.h"
+
 #include "MyRender.h"
+#include "Log.h"
+
 #include <xnamath.h>
 #include <d3dcompiler.h>
 
-struct SimpleVertex
+using namespace D3D11Framework;
+
+struct VERTEX
 {
 	XMFLOAT3 Pos;
 };
@@ -14,164 +17,192 @@ MyRender::MyRender(void)
 {
 	Log::Get()->Debug("MyRender::MyRender()");
 
-	m_pVertexBuffer = nullptr;
-	m_pVertexLayout = nullptr;
 	m_pVertexShader = nullptr;
 	m_pPixelShader = nullptr;
+	m_pVertexBuffer = nullptr;
+	m_pVertexLayout = nullptr;
 }
 
-
-HRESULT MyRender::m_compileShaderFromFile(WCHAR* Filename, LPCSTR EntryPoint,
-								LPCSTR ShaderModel, ID3DBlob** ppBlobOut)
+MyRender::~MyRender(void)
 {
+	Log::Get()->Debug("MyRender::~MyRender()");
+}
+
+HRESULT MyRender::m_compileShaderFromFile(wchar_t* filename, char* functionName,
+											char* shaderModelType, ID3DBlob** ppShader, 
+											ID3DBlob** ppErrMsg)
+{
+	Log::Get()->Debug("MyRender::m_compileShaderFromFile(): the begin");
 	HRESULT hr = S_OK;
 
-	hr = D3DX11CompileFromFile(Filename, NULL, NULL,
-								EntryPoint, ShaderModel, NULL, NULL,
-								NULL, ppBlobOut, NULL, NULL);
-
+	hr = D3DX11CompileFromFile(filename, NULL, NULL,
+									functionName, shaderModelType,
+									D3DCOMPILE_WARNINGS_ARE_ERRORS | D3DCOMPILE_ENABLE_STRICTNESS,
+									NULL, NULL,
+									ppShader, ppErrMsg, NULL);
+	
+	Log::Get()->Debug("MyRender::m_compileShaderFromFile(): the end");
 	return hr;
 }
 
 bool MyRender::Init(HWND hWnd)
 {
+	Log::Get()->Debug("MyRender::Init()");
 	HRESULT hr = S_OK;
+	ID3DBlob* pVSBlob = nullptr;		// byte code of the vertex shader
+	ID3DBlob* pPSBlob = nullptr;		// byte code of the pixel shader
+	ID3DBlob* pErrorMsg = nullptr;	// here we put errors which occur 
+									// during shader compilation from file
 
-	// ---------------------- THE VERTEX SHADER INITIALIZATION ---------------------
-	ID3DBlob* pVSBlob = nullptr;
+	wchar_t* shaderFileName = L"shader.fx";
 
-	// compilation of the vertex shader into a byte code
-	hr = m_compileShaderFromFile(L"shader.fx", "VS", "vs_4_0", &pVSBlob);
+	// -----------------------------------
+	//		VERTEX SHADER
+	// -----------------------------------
+
+	// compilation of the vertex shader
+	hr = m_compileShaderFromFile(shaderFileName, "VS", "vs_4_0", &pVSBlob, &pErrorMsg);
 	if (FAILED(hr))
 	{
-		Log::Get()->Err("MyRender::Init(): can't compile the vertex shader. "
-			"Please, run the program from the directory which contains the file");
-
+		Log::Get()->Error("MyRender::Init(): can't compile the vertex shader");
+		if (pErrorMsg)
+		{
+			OutputDebugStringA((LPCSTR)pErrorMsg->GetBufferPointer());
+			_RELEASE(pErrorMsg);
+		}
+		
 		return false;
 	}
-
-	// incapsulation the vertex shader into a vertex shader object
+	
+	// incapsulate the vertex shader into the vertex shader object
 	hr = m_pd3dDevice->CreateVertexShader(pVSBlob->GetBufferPointer(), 
 											pVSBlob->GetBufferSize(),
-											NULL,
-											&m_pVertexShader);
+											NULL, &m_pVertexShader);
 	if (FAILED(hr))
 	{
-		Log::Get()->Err("MyRender::Init(): can't create a vertex shader object");
+		Log::Get()->Error("MyRender::Init(): can't create the vertex shader");
 		_RELEASE(pVSBlob);
 		return false;
 	}
 
 
+	m_pImmediateContext->VSSetShader(m_pVertexShader, NULL, NULL);
+	Log::Get()->Debug("MyRender::Init(): the vertex shader is compiled successfully");
 
-	// ---------------------- THE INPUT LAYOUT --------------------------
+	// -----------------------------------
+	//		PIXEL SHADER
+	// -----------------------------------
 
-	// definition of the input layout description
-	D3D11_INPUT_ELEMENT_DESC layoutDesc[] =
+	hr = m_compileShaderFromFile(shaderFileName, "PS", "ps_4_0", &pPSBlob, &pErrorMsg);
+	if (FAILED(hr))
+	{
+		if (pErrorMsg)
+		{
+			OutputDebugStringA((char*)pErrorMsg->GetBufferPointer());
+			_RELEASE(pErrorMsg);
+		}
+
+		_RELEASE(pPSBlob);
+		Log::Get()->Error("MyRender::Init(): can't compile the pixel shader");
+		return false;
+	}
+
+	hr = m_pd3dDevice->CreatePixelShader(pPSBlob->GetBufferPointer(),
+											pPSBlob->GetBufferSize(),
+											NULL,
+											&m_pPixelShader);
+	_RELEASE(pPSBlob);
+	if (FAILED(hr))
+	{
+		
+		Log::Get()->Error("MyRender::Init(): can't create the pixel shader");
+		return false;
+	}
+
+	m_pImmediateContext->PSSetShader(m_pPixelShader, NULL, NULL);
+	Log::Get()->Debug("MyRender::Init(): the pixel shader is compiled successfully");
+
+
+	// -----------------------------------
+	//		INPUT VERTEX LAYOUT
+	// -----------------------------------
+	D3D11_INPUT_ELEMENT_DESC ied[] =
 	{
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
 	};
 
-	UINT numLayoutDesc = ARRAYSIZE(layoutDesc);
+	UINT numElements = ARRAYSIZE(ied);
 
-	// creation of the input layout
-	hr = m_pd3dDevice->CreateInputLayout(layoutDesc, numLayoutDesc,
-									pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(),
+	hr = m_pd3dDevice->CreateInputLayout(ied, 1, 
+									pVSBlob->GetBufferPointer(), 
+									pVSBlob->GetBufferSize(), 
 									&m_pVertexLayout);
-
-	_RELEASE(pVSBlob);
 	if (FAILED(hr))
 	{
-		Log::Get()->Err("MyRender::Init(): can't create the input layout");
+		Log::Get()->Error("MyRender::Init(): can't create the vertex layout");
 		return false;
 	}
 
-	// setting of the input layout
 	m_pImmediateContext->IASetInputLayout(m_pVertexLayout);
+	Log::Get()->Debug("MyRender::Init(): the input layout is created successfully");
 
 
+	// -----------------------------------
+	//		VERTEX BUFFER
+	// -----------------------------------
 
-
-	// ------------------------ THE PIXEL SHADER --------------------------------
-	ID3DBlob* pPSBlob = nullptr;
-
-	// compilation of the pixel shader into a byte code
-	hr = m_compileShaderFromFile(L"shader.fx", "PS", "ps_4_0", &pPSBlob);
-	if (FAILED(hr))
+	// triangle data
+	VERTEX triangle[] = 
 	{
-		Log::Get()->Err("MyRender::Init(): can't compile the pixel shader. "
-			"Please, run the program from the directory which contains the file");
-		return false;
-	}
-
-	// incapsulation of the pixel shader into the pixel shader object
-	hr = m_pd3dDevice->CreatePixelShader(pPSBlob->GetBufferPointer(),
-									pPSBlob->GetBufferSize(),
-									NULL,
-									&m_pPixelShader);
-	_RELEASE(pPSBlob);
-	if (FAILED(hr))
-	{
-		Log::Get()->Err("MyRender::Init(): can't create the pixel shader object");
-		return false;
-	}
-
-
-	// --------------------- THE MODEL DATA -------------------
-	SimpleVertex triangle[] =
-	{
-		XMFLOAT3(0.0f, 0.5f, 0.0f),
-		XMFLOAT3(0.5f, -0.5f, 0.0f),
-		XMFLOAT3(-0.5f, -0.5f, 0.0f),
+		{ XMFLOAT3(0.0f,  0.5f,  0.0f) },
+		{ XMFLOAT3(0.5f,  -0.5f, 0.0f) },
+		{ XMFLOAT3(-0.5f, -0.5f, 0.0f) },
 	};
 
-	// definition of the vertex buffer description
 	D3D11_BUFFER_DESC bd;
 	ZeroMemory(&bd, sizeof(D3D11_BUFFER_DESC));
 
-	bd.ByteWidth = sizeof(SimpleVertex) * 3;
-	bd.Usage = D3D11_USAGE_DEFAULT;
+	bd.ByteWidth = sizeof(VERTEX) * 3;		
 	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	bd.CPUAccessFlags = 0;
+	bd.Usage = D3D11_USAGE_DYNAMIC;
+	bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
-	// fill in the vertex buffer with the triangle's data
-	D3D11_SUBRESOURCE_DATA data;
-	ZeroMemory(&data, sizeof(D3D11_SUBRESOURCE_DATA));
-	data.pSysMem = triangle;
-
-	// creation of the vertex buffer
-	hr = m_pd3dDevice->CreateBuffer(&bd, &data, &m_pVertexBuffer);
+	hr = m_pd3dDevice->CreateBuffer(&bd, NULL, &m_pVertexBuffer);
 	if (FAILED(hr))
 	{
-		Log::Get()->Err("MyRender::Init(): can't create the vertex buffer");
+		Log::Get()->Error("MyRender::Init(): can't create the vertex buffer");
 		return false;
 	}
 
+	Log::Get()->Debug("MyRender::Init(): the vertex buffer is created successfully");
 
-	// setting of the vertex buffer
-	UINT offset = 0;
-	UINT stride = sizeof(SimpleVertex);
-	m_pImmediateContext->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
-
-	// setting of the primitive topology
-	m_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	D3D11_MAPPED_SUBRESOURCE ms;
+	m_pImmediateContext->Map(m_pVertexBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms);
+	memcpy(ms.pData, triangle, sizeof(triangle));
+	m_pImmediateContext->Unmap(m_pVertexBuffer, NULL);
+	Log::Get()->Debug("MyRender::Init(): the vertex buffer is filled with data successfully");
 
 	return true;
 }
 
 bool MyRender::Draw(void)
 {
-	m_pImmediateContext->VSSetShader(m_pVertexShader, NULL, 0);
-	m_pImmediateContext->PSSetShader(m_pPixelShader, NULL, 0);
+	UINT offset = 0;
+	UINT stride = sizeof(VERTEX);
+	
+	m_pImmediateContext->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
+	m_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	m_pImmediateContext->Draw(3, 0);
-
+	
 	return true;
 }
 
 void MyRender::Close(void)
 {
-	_RELEASE(m_pVertexBuffer);
+	m_pImmediateContext->ClearState();
+
 	_RELEASE(m_pVertexLayout);
+	_RELEASE(m_pVertexBuffer);
 	_RELEASE(m_pVertexShader);
 	_RELEASE(m_pPixelShader);
 }

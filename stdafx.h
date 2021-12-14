@@ -1,13 +1,11 @@
 #pragma once
 
-#include <stdio.h>
-#include <conio.h>
 
 // INCLUDE STATIC LIBRARIES
 #ifdef _DEBUG
-	#pragma comment (lib, "D3D11_Framework_d.lib")
+	#pragma comment (lib, "MyD3D11Framework_d.lib")
 #else
-	#pragma comment (lib, "D3D11_Framework.lib")
+	#pragma comment (lib, "MyD3D11Framework.lib")
 #endif
 
 // INCLUDE DIRECTX LIBRARIES
