@@ -14,6 +14,8 @@ using namespace D3D11Framework;
 
 struct VERTEX
 {
+	VERTEX() :
+		Pos(0.0f, 0.0f, 0.0f) {}
 	VERTEX(float x, float y, float z) :
 		Pos( x, y, z ) {}
 	VERTEX(XMFLOAT3 vertex) :
@@ -22,46 +24,22 @@ struct VERTEX
 	XMFLOAT3 Pos;
 };
 
-template<int ... N>
-struct seq
-{
-	using type = seq<N...>;
-	static const std::size_t size = sizeof ... (N);
-
-	template<int I>
-	struct push_back : seq<N..., I> {};
-};
-
-template<int N>
-struct genseq : genseq<N - 1>::type::template push_back<N - 1> {};
-
-template<>
-struct genseq<0> : seq<> {};
-
-template<int N>
-using genseq_t = typename genseq<N>::type;
-
-template<typename T, int...N>
-auto repeat(T value, seq<N...>)->std::array<T, sizeof...(N)>
-{
-	//unpack N, repeating `value` sizeof...(N) times
-	//note that (X, value) evaluates to value
-	return{ (N, value)... };
-}
-
-template<typename T, size_t N>
-std::array<T, N> filled_array(T const& u)
-{
-	//genseq_t<N> is seq<0,1,...N-1>
-	std::array<T, N> items = repeat(u, genseq_t<N>{});
-	return items;
-}
 
 class Circle
 {
 public:
-	Circle(void) 
+	Circle(int cX, int cY, int rad) 
 	{
+		radius = rad;
+		centerX = cX;
+		centerY = cY;
+		detalization = 30;
+		degree = 0;
+		centerPoint = VERTEX(
+			(centerX) / 100.0f - 0.5f,
+			(centerY) / 100.0f - 0.5f,
+			0.0f);
+
 		calculateCircle();
 	}
 
@@ -70,78 +48,38 @@ public:
 private:
 	void calculateCircle(void)
 	{
-
-		radius = 30;
-		centerX = 100.0f;
-		centerY = 100.0f;
-		int detalization = 30;
-		float counter = 0;
-
-
-		UINT index = 0;
-		// the first point: the centre of the circle
-		circleVertexBuffer.push_back(VERTEX(
-			(centerX) / 100.0f - 0.5f, 
-			(centerY) / 100.0f - 0.5f, 
-			0.0f));
-		printf("[%d]: %f : %f\n", index, circleVertexBuffer[index].Pos.x, circleVertexBuffer[index].Pos.y);
-
-
-
-		// the second point: upper
-		index++;
-		counter += 3.14159 / detalization;
-
-		circleVertexBuffer.push_back(VERTEX(
-			(centerX + sin(counter) * radius) / 100.0f - 0.5f,
-			(centerY + cos(counter) * radius) / 100.0f - 0.5f,
-			0.0f));
-		printf("[%d]: %f : %f\n", index, circleVertexBuffer[index].Pos.x, circleVertexBuffer[index].Pos.y);
-
-		VERTEX prevVertexOnCircle = circleVertexBuffer[index];
-
-		// the second point: right-bottom
-		counter += 3.14159 / detalization;
-		index++;
-
-
-		circleVertexBuffer.push_back(VERTEX(
-			(centerX + sin(counter) * radius) / 100.0f - 0.5f,
-			(centerY + cos(counter) * radius) / 100.0f - 0.5f,
-			0.0f));
-		printf("[%d]: %f : %f\n", index, circleVertexBuffer[index].Pos.x, circleVertexBuffer[index].Pos.y);
-
-		
+		circleVertexBuffer.push_back(centerPoint);			// the first point: the centre of the circle
+		circleVertexBuffer.push_back(calcPoint());			// the second point: upper
+		circleVertexBuffer.push_back(calcPoint());			// the third point: right-bottom
+		int indexOfPreviousVertex = circleVertexBuffer.size() - 1;
 		
 		for (UINT i = 1; i < 60; i++)
 		{
-
-			// the center
-			circleVertexBuffer.push_back(VERTEX(
-				(centerX) / 100.0f - 0.5f,
-				(centerY) / 100.0f - 0.5f,
-				0.0f
-			));
-
-			// prev point on the circle
-			circleVertexBuffer.push_back(prevVertexOnCircle);
-
-			// new point on the circle
-			counter += 3.14159 / detalization;
-			prevVertexOnCircle = (VERTEX(
-				(centerX + sin(counter) * radius) / 100.0f - 0.5f,
-				(centerY + cos(counter) * radius) / 100.0f - 0.5f,
-				0.0f
-			));
-			circleVertexBuffer.push_back(prevVertexOnCircle);
+			circleVertexBuffer.push_back(centerPoint);			// the center
+			circleVertexBuffer.push_back(circleVertexBuffer[indexOfPreviousVertex]);	// the prev point on the circle	
+			circleVertexBuffer.push_back(calcPoint());		// a new point on the circle
+			indexOfPreviousVertex += 3;
 		}
 		
 	}
 
+	VERTEX calcPoint(void)
+	{
+		degree += 3.14159 / detalization;
+
+		return VERTEX(
+			(centerX + sin(degree) * radius) / 100.0f - 0.5f,
+			(centerX + cos(degree) * radius) / 100.0f - 0.5f,
+			0.0f);
+	}
+
+	VERTEX centerPoint;
 	std::vector<VERTEX> circleVertexBuffer;
+	int detalization;
 	int radius;
 	float centerX;
 	float centerY;
+	float degree;
 };
 
 
@@ -336,7 +274,7 @@ bool MyRender::Init(HWND hWnd)
 	Log::Get()->Debug("MyRender::Init(): the vertex buffer is created successfully");
 
 	
-	Circle circle;
+	Circle circle(100, 100, 30);
 
 	D3D11_MAPPED_SUBRESOURCE ms;
 	m_pImmediateContext->Map(m_pVertexBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms);
