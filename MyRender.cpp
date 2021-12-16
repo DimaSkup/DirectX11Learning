@@ -6,12 +6,146 @@
 #include <xnamath.h>
 #include <d3dcompiler.h>
 
+#include <array>
+#include <vector>
+#include <type_traits>
+
 using namespace D3D11Framework;
 
 struct VERTEX
 {
+	VERTEX(float x, float y, float z) :
+		Pos( x, y, z ) {}
+	VERTEX(XMFLOAT3 vertex) :
+		Pos(vertex) {}
+
 	XMFLOAT3 Pos;
 };
+
+template<int ... N>
+struct seq
+{
+	using type = seq<N...>;
+	static const std::size_t size = sizeof ... (N);
+
+	template<int I>
+	struct push_back : seq<N..., I> {};
+};
+
+template<int N>
+struct genseq : genseq<N - 1>::type::template push_back<N - 1> {};
+
+template<>
+struct genseq<0> : seq<> {};
+
+template<int N>
+using genseq_t = typename genseq<N>::type;
+
+template<typename T, int...N>
+auto repeat(T value, seq<N...>)->std::array<T, sizeof...(N)>
+{
+	//unpack N, repeating `value` sizeof...(N) times
+	//note that (X, value) evaluates to value
+	return{ (N, value)... };
+}
+
+template<typename T, size_t N>
+std::array<T, N> filled_array(T const& u)
+{
+	//genseq_t<N> is seq<0,1,...N-1>
+	std::array<T, N> items = repeat(u, genseq_t<N>{});
+	return items;
+}
+
+class Circle
+{
+public:
+	Circle(void) 
+	{
+		calculateCircle();
+	}
+
+	const std::vector<VERTEX>& GetBufferPointer(void) const { return circleVertexBuffer; }
+
+private:
+	void calculateCircle(void)
+	{
+
+		radius = 30;
+		centerX = 100.0f;
+		centerY = 100.0f;
+		int detalization = 30;
+		float counter = 0;
+
+
+		UINT index = 0;
+		// the first point: the centre of the circle
+		circleVertexBuffer.push_back(VERTEX(
+			(centerX) / 100.0f - 0.5f, 
+			(centerY) / 100.0f - 0.5f, 
+			0.0f));
+		printf("[%d]: %f : %f\n", index, circleVertexBuffer[index].Pos.x, circleVertexBuffer[index].Pos.y);
+
+
+
+		// the second point: upper
+		index++;
+		counter += 3.14159 / detalization;
+
+		circleVertexBuffer.push_back(VERTEX(
+			(centerX + sin(counter) * radius) / 100.0f - 0.5f,
+			(centerY + cos(counter) * radius) / 100.0f - 0.5f,
+			0.0f));
+		printf("[%d]: %f : %f\n", index, circleVertexBuffer[index].Pos.x, circleVertexBuffer[index].Pos.y);
+
+		VERTEX prevVertexOnCircle = circleVertexBuffer[index];
+
+		// the second point: right-bottom
+		counter += 3.14159 / detalization;
+		index++;
+
+
+		circleVertexBuffer.push_back(VERTEX(
+			(centerX + sin(counter) * radius) / 100.0f - 0.5f,
+			(centerY + cos(counter) * radius) / 100.0f - 0.5f,
+			0.0f));
+		printf("[%d]: %f : %f\n", index, circleVertexBuffer[index].Pos.x, circleVertexBuffer[index].Pos.y);
+
+		
+		
+		for (UINT i = 1; i < 60; i++)
+		{
+
+			// the center
+			circleVertexBuffer.push_back(VERTEX(
+				(centerX) / 100.0f - 0.5f,
+				(centerY) / 100.0f - 0.5f,
+				0.0f
+			));
+
+			// prev point on the circle
+			circleVertexBuffer.push_back(prevVertexOnCircle);
+
+			// new point on the circle
+			counter += 3.14159 / detalization;
+			prevVertexOnCircle = (VERTEX(
+				(centerX + sin(counter) * radius) / 100.0f - 0.5f,
+				(centerY + cos(counter) * radius) / 100.0f - 0.5f,
+				0.0f
+			));
+			circleVertexBuffer.push_back(prevVertexOnCircle);
+		}
+		
+	}
+
+	std::vector<VERTEX> circleVertexBuffer;
+	int radius;
+	float centerX;
+	float centerY;
+};
+
+
+// **********************************************************************
 
 MyRender::MyRender(void)
 {
@@ -152,20 +286,45 @@ bool MyRender::Init(HWND hWnd)
 	// -----------------------------------
 
 	// triangle data
-	VERTEX triangle[] = 
+	/*
+	VERTEX vertices[] =
 	{
-		{ XMFLOAT3(0.0f,  0.5f,  0.0f) },
-		{ XMFLOAT3(0.5f,  -0.5f, 0.0f) },
-		{ XMFLOAT3(-0.5f, -0.5f, 0.0f) },
+		{ XMFLOAT3(-0.5f,  0.5f,  0.0f) },
+		{ XMFLOAT3(0.5f,  0.5f,  0.0f) },
+		{ XMFLOAT3(-0.5f, -0.5f,  0.0f) },
 	};
+	*/
+	VERTEX vertices[] =
+	{
+		{ XMFLOAT3(-0.5f,  0.5f,  0.0f) },
+		{ XMFLOAT3(0.5f,  0.5f,  0.0f) },
+		{ XMFLOAT3(-0.5f, -0.5f,  0.0f) },
+	};
+
+	
+	
+
+	
+	
 
 	D3D11_BUFFER_DESC bd;
 	ZeroMemory(&bd, sizeof(D3D11_BUFFER_DESC));
 
-	bd.ByteWidth = sizeof(VERTEX) * 3;		
+	int verticesCount = 200;
+	int bufferSize = sizeof(VERTEX) * verticesCount;
+
+
+	bd.ByteWidth = bufferSize;
 	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	bd.Usage = D3D11_USAGE_DYNAMIC;
 	bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+	/*
+	D3D11_SUBRESOURCE_DATA initData;
+	ZeroMemory(&initData, sizeof(D3D11_SUBRESOURCE_DATA));
+	initData.pSysMem = triangle;
+	hr = m_pd3dDevice->CreateBuffer(&bd, &initData, &m_pVertexBuffer);
+	*/
 
 	hr = m_pd3dDevice->CreateBuffer(&bd, NULL, &m_pVertexBuffer);
 	if (FAILED(hr))
@@ -176,10 +335,14 @@ bool MyRender::Init(HWND hWnd)
 
 	Log::Get()->Debug("MyRender::Init(): the vertex buffer is created successfully");
 
+	
+	Circle circle;
+
 	D3D11_MAPPED_SUBRESOURCE ms;
 	m_pImmediateContext->Map(m_pVertexBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms);
-	memcpy(ms.pData, triangle, sizeof(triangle));
+	memcpy(ms.pData, (circle.GetBufferPointer().begin()._Ptr), bufferSize);
 	m_pImmediateContext->Unmap(m_pVertexBuffer, NULL);
+	
 	Log::Get()->Debug("MyRender::Init(): the vertex buffer is filled with data successfully");
 
 	return true;
@@ -192,7 +355,7 @@ bool MyRender::Draw(void)
 	
 	m_pImmediateContext->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
 	m_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	m_pImmediateContext->Draw(3, 0);
+	m_pImmediateContext->Draw(200, 0);
 	
 	return true;
 }
