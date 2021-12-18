@@ -25,7 +25,7 @@ int main()
 	
 	Framework framework;
 
-	MyRender *render = new (std::nothrow) MyRender();
+	MyRender *render = new MyRender();
 	//MyInput *input = new (std::nothrow) MyInput();
 
 	if (!render)
