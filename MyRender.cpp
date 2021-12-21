@@ -134,8 +134,9 @@ HRESULT MyRender::m_compileShaderFromFile(wchar_t* filename, char* functionName,
 									ppShader, &pErrorMessage, NULL);
 	if (FAILED(hr) && pErrorMessage != NULL)
 		OutputDebugStringA((char*)pErrorMessage->GetBufferPointer());
-
 	_RELEASE(pErrorMessage);
+
+
 	Log::Get()->Debug("MyRender::m_compileShaderFromFile(): worked with %s shader file;"
 						" function: %s()", filename, functionName);
 	return hr;
@@ -166,25 +167,29 @@ bool MyRender::Init(HWND hWnd)
 		return false;
 	}
 
+
+
+	// creation of the input vertex layout
 	D3D11_INPUT_ELEMENT_DESC layout[] =
 	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+		{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
 	};
-	UINT numElements = ARRAYSIZE(layout);
 
-	hr = m_pd3dDevice->CreateInputLayout(layout, numElements, pVSBlob->GetBufferPointer(),
-										pVSBlob->GetBufferSize(), &m_pVertexLayout);
+	UINT numLayoutElements = ARRAYSIZE(layout);
+
+	hr = m_pd3dDevice->CreateInputLayout(layout, numLayoutElements, 
+											pVSBlob->GetBufferPointer(),
+											pVSBlob->GetBufferSize(),
+											&m_pVertexLayout);
 	_RELEASE(pVSBlob);
 	if (FAILED(hr))
 	{
-		Log::Get()->Error("MyRender::Init(): can't create the input layout");
+		Log::Get()->Error("MyRender::Init(): can't create the input vertex layout");
 		return false;
 	}
-
+	
 	m_pImmediateContext->IASetInputLayout(m_pVertexLayout);
-
-
 
 
 	// compilation of the pixel shader 
@@ -207,30 +212,34 @@ bool MyRender::Init(HWND hWnd)
 		return false;
 	}
 
+
+	// set up the cube params
 	VERTEX vertices[] =
 	{
-		// the upper side
-		{ XMFLOAT3(-1.0f, 1.0f,-1.0f),		XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f) },
-		{ XMFLOAT3(1.0f, 1.0f,-1.0f),		XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f) },
-		{ XMFLOAT3(1.0f, 1.0f, 1.0f),		XMFLOAT4(0.0f, 1.0f, 1.0f, 1.0f) },
-		{ XMFLOAT3(-1.0f, 1.0f, 1.0f),		XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(-1.0f, 1.0f, -1.0f),		XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f) },
+		{ XMFLOAT3( 1.0f, 1.0f, -1.0f),		XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3( 1.0f, 1.0f,  1.0f),		XMFLOAT4(0.0f, 1.0f, 1.0f, 1.0f) },
+		{ XMFLOAT3(-1.0f, 1.0f,  1.0f),		XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f) },
 
-		// the bottom side
 		{ XMFLOAT3(-1.0f, -1.0f, -1.0f),	XMFLOAT4(1.0f, 0.0f, 1.0f, 1.0f) },
-		{ XMFLOAT3(1.0f, -1.0f, -1.0f),		XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f) },
-		{ XMFLOAT3(1.0f, -1.0f, 1.0f),		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f) },
-		{ XMFLOAT3(-1.0f, -1.0f, 1.0f),		XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3( 1.0f, -1.0f, -1.0f),	XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3( 1.0f, -1.0f,  1.0f),	XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f) },
+		{ XMFLOAT3(-1.0f, -1.0f,  1.0f),	XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f) },
 	};
 
+
+	// definition of the vertex buffer description
 	D3D11_BUFFER_DESC bd;
 	ZeroMemory(&bd, sizeof(D3D11_BUFFER_DESC));
-	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+
 	bd.ByteWidth = sizeof(VERTEX) * 8;
+	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bd.Usage = D3D11_USAGE_DEFAULT;
 	bd.CPUAccessFlags = 0;
 
 	D3D11_SUBRESOURCE_DATA initData;
 	initData.pSysMem = vertices;
+
 	hr = m_pd3dDevice->CreateBuffer(&bd, &initData, &m_pVertexBuffer);
 	if (FAILED(hr))
 	{
@@ -238,11 +247,65 @@ bool MyRender::Init(HWND hWnd)
 		return false;
 	}
 
+
 	UINT stride = sizeof(VERTEX);
 	UINT offset = 0;
 	m_pImmediateContext->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
 
 
+	WORD indices[] =
+	{
+		// the upper side
+		1, 0, 3,
+		1, 3, 2,
+
+		// the right side
+		1, 2, 6,
+		1, 6, 5,
+
+		// the left side
+		3, 0, 4,
+		3, 4, 7,
+
+		// the front side
+		//2, 3, 6,
+		//3, 7, 6,
+		//2, 3, 7,	// red/cyan/white/black
+		//2, 7, 6,
+		6, 2, 3,
+		6, 3, 7,
+
+		// the back side
+		0, 1, 5,
+		0, 5, 4,
+
+		// the bottom side
+		6, 7, 4,
+		6, 4, 5,
+	};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	/*
 	// indices for the cube
 	WORD indices[] =
 	{
@@ -264,6 +327,7 @@ bool MyRender::Init(HWND hWnd)
 		6,4,5,
 		7,4,6,
 	};
+	*/
 
 	bd.Usage = D3D11_USAGE_DEFAULT;
 	bd.ByteWidth = sizeof(WORD) * 36;
