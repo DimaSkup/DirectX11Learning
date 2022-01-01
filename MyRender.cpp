@@ -1,95 +1,4 @@
-// last revising at 31.12.21
-
-#include "MyRender.h"
-#include "Log.h"
-
-#include <d3dcompiler.h>
-#include <type_traits>
-
-using namespace D3D11Framework;
-
-struct VERTEX
-{
-	XMFLOAT3 Pos;
-	XMFLOAT4 Color;
-};
-
-struct ConstantBuffer
-{
-	XMMATRIX mWorld;
-	XMMATRIX mView;
-	XMMATRIX mProjection;
-};
-
-MyRender::MyRender(void)
-{
-	m_pVertexShader = nullptr;
-	m_pPixelShader = nullptr;
-	m_pVertexBuffer = nullptr;
-	m_pVertexLayout = nullptr;
-
-	m_pConstantBuffer = nullptr;
-	m_pIndexBuffer = nullptr;
-}
-
-MyRender::~MyRender(void)
-{
-
-}
-
-HRESULT MyRender::m_compileShaderFromFile(WCHAR* Filename, LPCSTR FunctionName,
-											LPCSTR ShaderModel, ID3DBlob** OutBlob)
-{
-	HRESULT hr = S_OK;
-
-	UINT shaderFlags = D3DCOMPILE_WARNINGS_ARE_ERRORS | D3DCOMPILE_ENABLE_STRICTNESS;
-
-#if defined(DEBUG) || defined(_DEBUG)
-	shaderFlags |= D3DCOMPILE_DEBUG;
-#endif
-
-	ID3DBlob* pErrorMsg = nullptr;
-	hr = D3DX11CompileFromFile(Filename, nullptr, NULL,
-								FunctionName, ShaderModel, 
-								shaderFlags, NULL, NULL,
-								OutBlob, &pErrorMsg, NULL);
-
-	if (FAILED(hr) && (pErrorMsg != nullptr))
-		OutputDebugStringA((char*)pErrorMsg->GetBufferPointer());
-	_RELEASE(pErrorMsg);
-
-	return hr;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/*
+// last revising at 01.01.22
 
 #include "stdafx.h"
 
@@ -99,31 +8,18 @@ HRESULT MyRender::m_compileShaderFromFile(WCHAR* Filename, LPCSTR FunctionName,
 #include <d3dcompiler.h>
 #include <type_traits>
 
-#include <vector>
-
 using namespace D3D11Framework;
 
 struct VERTEX
 {
-	VERTEX() :
-		Pos(0.0f, 0.0f, 0.0f) {}
-	VERTEX(float x, float y, float z) :
-		Pos( x, y, z ) {}
-	VERTEX(XMFLOAT3 vertex) :
-		Pos(vertex) {}
-	
+	VERTEX(XMFLOAT3 vertex, XMFLOAT4 color) :
+		Pos(vertex), Color(color) {}
 
 	XMFLOAT3 Pos;
 	XMFLOAT4 Color;
 };
 
-struct ConstantBuffer
-{
-	XMMATRIX mWorld;
-	XMMATRIX mView;
-	XMMATRIX mProjection;
-};
-
+/*
 
 class Circle
 {
@@ -182,10 +78,14 @@ private:
 	float degree;
 };
 
+*/
 
-
-
-// **********************************************************************
+struct ConstantBuffer
+{
+	XMMATRIX mWorld;
+	XMMATRIX mView;
+	XMMATRIX mProjection;
+};
 
 MyRender::MyRender(void)
 {
@@ -196,37 +96,39 @@ MyRender::MyRender(void)
 	m_pVertexBuffer = nullptr;
 	m_pVertexLayout = nullptr;
 
-	m_pIndexBuffer = nullptr;
 	m_pConstantBuffer = nullptr;
+	m_pIndexBuffer = nullptr;
 }
 
 MyRender::~MyRender(void)
 {
-	Log::Get()->Debug("MyRender::~MyRender()");
+
 }
 
-HRESULT MyRender::m_compileShaderFromFile(WCHAR* filename, LPCSTR functionName,
-											LPCSTR shaderModelType, ID3DBlob** ppShader)
+HRESULT MyRender::m_compileShaderFromFile(WCHAR* Filename, LPCSTR FunctionName,
+											LPCSTR ShaderModel, ID3DBlob** OutBlob)
 {
 	HRESULT hr = S_OK;
 
-	DWORD shaderFlags = D3DCOMPILE_ENABLE_STRICTNESS | D3DCOMPILE_WARNINGS_ARE_ERRORS;
+	UINT shaderFlags = D3DCOMPILE_WARNINGS_ARE_ERRORS | D3DCOMPILE_ENABLE_STRICTNESS;
+
 #if defined(DEBUG) || defined(_DEBUG)
 	shaderFlags |= D3DCOMPILE_DEBUG;
 #endif
 
-	ID3DBlob* pErrorMessage;
-	hr = D3DX11CompileFromFile(filename, NULL, NULL,
-									functionName, shaderModelType,
-									shaderFlags, NULL, NULL,
-									ppShader, &pErrorMessage, NULL);
-	if (FAILED(hr) && pErrorMessage != NULL)
-		OutputDebugStringA((char*)pErrorMessage->GetBufferPointer());
-	_RELEASE(pErrorMessage);
+	ID3DBlob* pErrorMsg = nullptr;
+	hr = D3DX11CompileFromFile(Filename, nullptr, NULL,
+								FunctionName, ShaderModel, 
+								shaderFlags, NULL, NULL,
+								OutBlob, &pErrorMsg, NULL);
 
+	if (FAILED(hr) && (pErrorMsg != nullptr))
+		OutputDebugStringA((char*)pErrorMsg->GetBufferPointer());
+	_RELEASE(pErrorMsg);
 
 	Log::Get()->Debug("MyRender::m_compileShaderFromFile(): worked with %s shader file;"
-						" function: %s()", filename, functionName);
+		" function: %s()", Filename, FunctionName);
+
 	return hr;
 }
 
@@ -234,89 +136,94 @@ bool MyRender::Init(HWND hWnd)
 {
 	HRESULT hr = S_OK;
 
-
-	// compilation of the vertex shader and creation of the input layout per vertex data
-	ID3DBlob* pVSBlob = NULL;
-	hr = m_compileShaderFromFile(L"shader.fx", "VS", "vs_4_0", &pVSBlob);
+	// CREATION OF THE VERTEX SHADER
+	ID3DBlob* pVertexShader = nullptr;
+	 
+	hr = m_compileShaderFromFile(L"shader.fx", "VS", "vs_4_0", &pVertexShader);
 	if (FAILED(hr))
 	{
-		Log::Get()->Error("MyRender::Init(): can't compile the shader.fx file (vertex shader)");
+		Log::Get()->Error("MyRender::Init(): can't compile the vertex shader");
+		_RELEASE(pVertexShader);
 		return false;
 	}
 
-	hr = m_pd3dDevice->CreateVertexShader(pVSBlob->GetBufferPointer(),
-											pVSBlob->GetBufferSize(),
-											NULL,
+	hr = m_pd3dDevice->CreateVertexShader(pVertexShader->GetBufferPointer(),
+											pVertexShader->GetBufferSize(),
+											nullptr,
 											&m_pVertexShader);
 	if (FAILED(hr))
 	{
-		_RELEASE(pVSBlob);
-		Log::Get()->Error("MyRender::Init(): can't create the vertex shader");
+		_RELEASE(pVertexShader);
+		Log::Get()->Error("MyRender::Init(): can't create the vertex shader object");
 		return false;
 	}
 
 
-
-	// creation of the input vertex layout
-	D3D11_INPUT_ELEMENT_DESC layout[] =
+	// CREATION OF THE INPUT VERTEX LAYOUT
+	D3D11_INPUT_ELEMENT_DESC ied[] =
 	{
-		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-		{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 	};
 
-	UINT numLayoutElements = ARRAYSIZE(layout);
+	UINT numInputElements = ARRAYSIZE(ied);
 
-	hr = m_pd3dDevice->CreateInputLayout(layout, numLayoutElements, 
-											pVSBlob->GetBufferPointer(),
-											pVSBlob->GetBufferSize(),
-											&m_pVertexLayout);
-	_RELEASE(pVSBlob);
+	hr = m_pd3dDevice->CreateInputLayout(ied, numInputElements, 
+										 pVertexShader->GetBufferPointer(),
+										 pVertexShader->GetBufferSize(),
+										 &m_pVertexLayout);
+	_RELEASE(pVertexShader);
 	if (FAILED(hr))
 	{
 		Log::Get()->Error("MyRender::Init(): can't create the input vertex layout");
 		return false;
 	}
-	
+
 	m_pImmediateContext->IASetInputLayout(m_pVertexLayout);
 
 
-	// compilation of the pixel shader 
-	ID3DBlob* pPSBlob = nullptr;
-	hr = m_compileShaderFromFile(L"shader.fx", "PS", "ps_4_0", &pPSBlob);
+	// CREATION OF THE PIXEL SHADER
+	ID3DBlob* pPixelShader = nullptr;
+
+	hr = m_compileShaderFromFile(L"shader.fx", "PS", "ps_4_0", &pPixelShader);
 	if (FAILED(hr))
 	{
-		Log::Get()->Error("MyRender::Init(): can't compile the shader.fx file (pixel shader)");
+		Log::Get()->Error("MyRender::Init(): can't compile the pixel shader");
+		_RELEASE(pPixelShader);
 		return false;
 	}
 
-	hr = m_pd3dDevice->CreatePixelShader(pPSBlob->GetBufferPointer(),
-											pPSBlob->GetBufferSize(),
-											NULL,
-											&m_pPixelShader);
-	_RELEASE(pPSBlob);
+	hr = m_pd3dDevice->CreatePixelShader(pPixelShader->GetBufferPointer(),
+										 pPixelShader->GetBufferSize(),
+										 nullptr,
+										 &m_pPixelShader);
+	_RELEASE(pPixelShader);
 	if (FAILED(hr))
 	{
-		Log::Get()->Error("MyRender::Init(): can't create the pixel shader");
+		Log::Get()->Error("MyRender::Init(): can't create the pixel shader object");
 		return false;
 	}
 
 
-	// set up the cube params
-	VERTEX vertices[] =
-	{
-		{ XMFLOAT3(-1.0f, 1.0f, -1.0f),		XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f) },
-		{ XMFLOAT3( 1.0f, 1.0f, -1.0f),		XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f) },
-		{ XMFLOAT3( 1.0f, 1.0f,  1.0f),		XMFLOAT4(0.0f, 1.0f, 1.0f, 1.0f) },
-		{ XMFLOAT3(-1.0f, 1.0f,  1.0f),		XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f) },
 
-		{ XMFLOAT3(-1.0f, -1.0f, -1.0f),	XMFLOAT4(1.0f, 0.0f, 1.0f, 1.0f) },
-		{ XMFLOAT3( 1.0f, -1.0f, -1.0f),	XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f) },
-		{ XMFLOAT3( 1.0f, -1.0f,  1.0f),	XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f) },
-		{ XMFLOAT3(-1.0f, -1.0f,  1.0f),	XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f) },
+	// DEFINITION OF THE MODEL DATA
+	VERTEX cube[] =
+	{
+		// the upper side
+		XMFLOAT3(-1.0f, 1.0f, -1.0f),  XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f),
+		XMFLOAT3( 1.0f, 1.0f, -1.0f),  XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f),
+		XMFLOAT3( 1.0f, 1.0f,  1.0f),  XMFLOAT4(0.0f, 1.0f, 1.0f, 1.0f),
+		XMFLOAT3(-1.0f, 1.0f,  1.0f),  XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f),
+
+		// the bottom size
+		XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(1.0f, 0.0f, 1.0f, 1.0f),
+		XMFLOAT3( 1.0f, -1.0f, -1.0f), XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f),
+		XMFLOAT3( 1.0f, -1.0f,  1.0f), XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
+		XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f),
 	};
 
 
-	// definition of the vertex buffer description
+	// CREATION OF THE VERTEX BUFFER
 	D3D11_BUFFER_DESC bd;
 	ZeroMemory(&bd, sizeof(D3D11_BUFFER_DESC));
 
@@ -326,7 +233,7 @@ bool MyRender::Init(HWND hWnd)
 	bd.CPUAccessFlags = 0;
 
 	D3D11_SUBRESOURCE_DATA initData;
-	initData.pSysMem = vertices;
+	initData.pSysMem = cube;
 
 	hr = m_pd3dDevice->CreateBuffer(&bd, &initData, &m_pVertexBuffer);
 	if (FAILED(hr))
@@ -335,61 +242,61 @@ bool MyRender::Init(HWND hWnd)
 		return false;
 	}
 
-
 	UINT stride = sizeof(VERTEX);
 	UINT offset = 0;
 	m_pImmediateContext->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
-
-
-	// indices of the cube vertices
-	WORD indices[] =
-	{
-		3,1,0,
-		2,1,3,
-
-		0,5,4,
-		1,5,0,
-
-		3,4,7,
-		0,4,3,
-
-		1,6,5,
-		2,6,1,
-
-		2,7,6,
-		3,7,2,
-
-		6,4,5,
-		7,4,6,
-	};
-	
-
-	// INDEX BUFFER CREATION
-	bd.ByteWidth = sizeof(WORD) * 36;
-	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	bd.CPUAccessFlags = 0;
-
-	initData.pSysMem = indices;
-	hr = m_pd3dDevice->CreateBuffer(&bd, &initData, &m_pIndexBuffer);
-	if (FAILED(hr))
-	{
-		Log::Get()->Error("MyRender::Init(): can't create the indices buffer");
-		return false;
-	}
-
-
-	m_pImmediateContext->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
 	m_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 
-	// CONSTANT BUFFER CREATION
-	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	bd.ByteWidth = sizeof(ConstantBuffer);
-	bd.CPUAccessFlags = 0;
 
-	hr = m_pd3dDevice->CreateBuffer(&bd, NULL, &m_pConstantBuffer);
+	// CREATION OF THE INDEX BUFFER
+	WORD indices[] =
+	{
+		// the upper side
+		3, 1, 0,
+		2, 1, 3,
+
+		// the front side
+		2, 3, 7,
+		6, 2, 7,
+
+		// the right side
+		6, 1, 2,
+		5, 1, 6,
+
+		// the left side
+		4, 3, 0,
+		7, 3, 4,
+
+		// the back side
+		5, 0, 1,
+		4, 0, 5,
+
+		// the bottom side
+		4, 6, 7,
+		5, 6, 4,
+	};
+
+	// setting of the index buffer parameters
+	bd.ByteWidth = sizeof(WORD) * 36;
+	bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	initData.pSysMem = indices;
+
+	hr = m_pd3dDevice->CreateBuffer(&bd, &initData, &m_pIndexBuffer);
+	if (FAILED(hr))
+	{
+		Log::Get()->Error("MyRender::Init(): can't create the index buffer");
+		return false;
+	}
+
+	m_pImmediateContext->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
+
+
+	// CREATION OF THE CONSTANT BUFFER
+	bd.ByteWidth = sizeof(ConstantBuffer);
+	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+	hr = m_pd3dDevice->CreateBuffer(&bd, nullptr, &m_pConstantBuffer);
 	if (FAILED(hr))
 	{
 		Log::Get()->Error("MyRender::Init(): can't create the constant buffer");
@@ -398,62 +305,64 @@ bool MyRender::Init(HWND hWnd)
 
 
 	// SPACES MATRICES DEFINITION
-	m_World = XMMatrixIdentity();	// definition of the world matrix
+	m_World = XMMatrixIdentity();	// definition of the world matrix	
 
+	// definition of the view matrix
 	XMVECTOR Eye = XMVectorSet(0.0f, 3.0f, -5.0f, 0.0f);
-	XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-	XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-	m_View = XMMatrixLookAtLH(Eye, At, Up);	// definition of the view matrix
+	XMVECTOR At  = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	XMVECTOR Up  = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	m_View = XMMatrixLookAtLH(Eye, At, Up);
 
+	// definition of the projection matrix
 	float width = 640.0f;
 	float height = 480.0f;
-	// definition of the projection matrix
 	m_Projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, width / height, 0.01f, 100.0f);
 
 	return true;
 }
 
+
 bool MyRender::Draw(void)
-{	
+{
 	static float t = 0.0f;				// current rotation angle
 	static DWORD dwTimeStart = 0;		// beginning time of the scene
 	DWORD dwTimeCur = GetTickCount();	// time from the beginning of the scene
 
 	if (dwTimeStart == 0)
-	dwTimeStart = dwTimeCur;
-	t = (dwTimeCur - dwTimeStart) / 1000.f;
+		dwTimeStart = dwTimeCur;
+	t = (dwTimeCur - dwTimeStart) / 1000.0f;	// definition of the scene rotation angle
 
 	// get world matrix by the current rotation angle
-	m_World = XMMatrixRotationY(t);
+	m_World = XMMatrixRotationY(t);	
 
-
-
+	// set up the constant buffer
 	ConstantBuffer cb;
 	cb.mWorld = XMMatrixTranspose(m_World);
 	cb.mView = XMMatrixTranspose(m_View);
 	cb.mProjection = XMMatrixTranspose(m_Projection);
 	m_pImmediateContext->UpdateSubresource(m_pConstantBuffer, 0, nullptr, &cb, 0, 0);
 
+	// set some COM-objects before drawing
 	m_pImmediateContext->VSSetShader(m_pVertexShader, nullptr, 0);
 	m_pImmediateContext->PSSetShader(m_pPixelShader, nullptr, 0);
 	m_pImmediateContext->VSSetConstantBuffers(0, 1, &m_pConstantBuffer);
 
+	// drawing
 	m_pImmediateContext->DrawIndexed(36, 0, 0);
 
 	return true;
 }
+
 
 void MyRender::Close(void)
 {
 	m_pImmediateContext->ClearState();
 
 	_RELEASE(m_pConstantBuffer);
-	_RELEASE(m_pVertexBuffer);
 	_RELEASE(m_pIndexBuffer);
+
 	_RELEASE(m_pVertexLayout);
-	_RELEASE(m_pVertexShader);
+	_RELEASE(m_pVertexBuffer);
 	_RELEASE(m_pPixelShader);
-
+	_RELEASE(m_pVertexShader);
 }
-
-*/
