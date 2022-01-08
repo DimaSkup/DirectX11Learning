@@ -5,7 +5,6 @@
 #include "MyRender.h"
 #include "Log.h"
 
-#include <d3dcompiler.h>
 #include <type_traits>
 
 using namespace D3D11Framework;
@@ -105,32 +104,6 @@ MyRender::~MyRender(void)
 
 }
 
-HRESULT MyRender::m_compileShaderFromFile(WCHAR* Filename, LPCSTR FunctionName,
-											LPCSTR ShaderModel, ID3DBlob** OutBlob)
-{
-	HRESULT hr = S_OK;
-
-	UINT shaderFlags = D3DCOMPILE_WARNINGS_ARE_ERRORS | D3DCOMPILE_ENABLE_STRICTNESS;
-
-#if defined(DEBUG) || defined(_DEBUG)
-	shaderFlags |= D3DCOMPILE_DEBUG;
-#endif
-
-	ID3DBlob* pErrorMsg = nullptr;
-	hr = D3DX11CompileFromFile(Filename, nullptr, NULL,
-								FunctionName, ShaderModel, 
-								shaderFlags, NULL, NULL,
-								OutBlob, &pErrorMsg, NULL);
-
-	if (FAILED(hr) && (pErrorMsg != nullptr))
-		OutputDebugStringA((char*)pErrorMsg->GetBufferPointer());
-	_RELEASE(pErrorMsg);
-
-	Log::Get()->Debug("MyRender::m_compileShaderFromFile(): worked with %s shader file;"
-		" function: %s()", Filename, FunctionName);
-
-	return hr;
-}
 
 bool MyRender::Init(HWND hWnd)
 {
@@ -210,16 +183,16 @@ bool MyRender::Init(HWND hWnd)
 	VERTEX cube[] =
 	{
 		// the upper side
-		XMFLOAT3(-1.0f, 1.0f, -1.0f),  XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f),
-		XMFLOAT3( 1.0f, 1.0f, -1.0f),  XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f),
-		XMFLOAT3( 1.0f, 1.0f,  1.0f),  XMFLOAT4(0.0f, 1.0f, 1.0f, 1.0f),
-		XMFLOAT3(-1.0f, 1.0f,  1.0f),  XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f),
+		{ XMFLOAT3(-1.0f, 1.0f, -1.0f),  XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f) },
+		{ XMFLOAT3( 1.0f, 1.0f, -1.0f),  XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3( 1.0f, 1.0f,  1.0f),  XMFLOAT4(0.0f, 1.0f, 1.0f, 1.0f) },
+		{ XMFLOAT3(-1.0f, 1.0f,  1.0f),  XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f) },
 
 		// the bottom size
-		XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(1.0f, 0.0f, 1.0f, 1.0f),
-		XMFLOAT3( 1.0f, -1.0f, -1.0f), XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f),
-		XMFLOAT3( 1.0f, -1.0f,  1.0f), XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
-		XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f),
+		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(1.0f, 0.0f, 1.0f, 1.0f) },
+		{ XMFLOAT3( 1.0f, -1.0f, -1.0f), XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3( 1.0f, -1.0f,  1.0f), XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f) },
+		{ XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f) },
 	};
 
 
@@ -305,7 +278,8 @@ bool MyRender::Init(HWND hWnd)
 
 
 	// SPACES MATRICES DEFINITION
-	m_World = XMMatrixIdentity();	// definition of the world matrix	
+	m_World1 = XMMatrixIdentity();	// definition of the world matrix	
+	m_World2 = XMMatrixIdentity();	
 
 	// definition of the view matrix
 	XMVECTOR Eye = XMVectorSet(0.0f, 3.0f, -5.0f, 0.0f);
@@ -322,7 +296,7 @@ bool MyRender::Init(HWND hWnd)
 }
 
 
-bool MyRender::Draw(void)
+void MyRender::Update(void)
 {
 	static float t = 0.0f;				// current rotation angle
 	static DWORD dwTimeStart = 0;		// beginning time of the scene
@@ -331,24 +305,43 @@ bool MyRender::Draw(void)
 	if (dwTimeStart == 0)
 		dwTimeStart = dwTimeCur;
 	t = (dwTimeCur - dwTimeStart) / 1000.0f;	// definition of the scene rotation angle
+									
+	m_World1 = XMMatrixRotationY(t);	// get world matrix by the current rotation angle
 
-	// get world matrix by the current rotation angle
-	m_World = XMMatrixRotationY(t);	
 
-	// set up the constant buffer
-	ConstantBuffer cb;
-	cb.mWorld = XMMatrixTranspose(m_World);
-	cb.mView = XMMatrixTranspose(m_View);
-	cb.mProjection = XMMatrixTranspose(m_Projection);
-	m_pImmediateContext->UpdateSubresource(m_pConstantBuffer, 0, nullptr, &cb, 0, 0);
+	XMMATRIX mScale = XMMatrixScaling(0.3f, 0.3f, 0.3f);
+	XMMATRIX mSpin = XMMatrixRotationZ(-t);
+	XMMATRIX mTrans = XMMatrixTranslation(-4.0f, 0.0f, 0.0f);
+	XMMATRIX mOrbit = XMMatrixRotationY(-t * 2.0f);
+
+	m_World2 = mScale * mSpin * mTrans * mOrbit;
+}
+
+
+bool MyRender::Draw(void)
+{
+	Update();
+
+	// set up a constant buffer for the first world matrix
+	ConstantBuffer cb1;
+	cb1.mWorld = XMMatrixTranspose(m_World1);
+	cb1.mView = XMMatrixTranspose(m_View);
+	cb1.mProjection = XMMatrixTranspose(m_Projection);
+	m_pImmediateContext->UpdateSubresource(m_pConstantBuffer, 0, nullptr, &cb1, 0, 0);
 
 	// set some COM-objects before drawing
 	m_pImmediateContext->VSSetShader(m_pVertexShader, nullptr, 0);
 	m_pImmediateContext->PSSetShader(m_pPixelShader, nullptr, 0);
 	m_pImmediateContext->VSSetConstantBuffers(0, 1, &m_pConstantBuffer);
-
-	// drawing
 	m_pImmediateContext->DrawIndexed(36, 0, 0);
+
+	ConstantBuffer cb2;
+	cb2.mWorld = XMMatrixTranspose(m_World2);
+	cb2.mView = XMMatrixTranspose(m_View);
+	cb2.mProjection = XMMatrixTranspose(m_Projection);
+	m_pImmediateContext->UpdateSubresource(m_pConstantBuffer, 0, nullptr, &cb2, 0, 0);
+	m_pImmediateContext->DrawIndexed(36, 0, 0);
+
 
 	return true;
 }
