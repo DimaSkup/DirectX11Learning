@@ -1,4 +1,4 @@
-// last revising at 04.01.22
+// last revising at 13.01.22
 
 cbuffer ConstantBuffer
 {
@@ -13,15 +13,16 @@ cbuffer ConstantBuffer
 
 struct VS_INPUT
 {
-	float4 Pos : POSITION;
-	float3 Norm : NORMAL;
+	float4 Pos	: POSITION;
+	float3 Norm	: NORMAL;
 };
 
 struct PS_INPUT
 {
-	float4 Pos : SV_POSITION;
-	float3 Norm : TEXCOORD0;
+	float4 Pos	: SV_POSITION;
+	float3 Norm	: TEXCOORD0;
 };
+
 
 PS_INPUT VS( VS_INPUT input )
 {
@@ -30,7 +31,6 @@ PS_INPUT VS( VS_INPUT input )
 	output.Pos = mul(input.Pos, World);
 	output.Pos = mul(output.Pos, View);
 	output.Pos = mul(output.Pos, Projection);
-	//output.Norm = (float3)mul(float4(input.Norm, 1.0f), World);
 	output.Norm = mul(input.Norm, World);
 
 	return output;
@@ -54,71 +54,3 @@ float4 PSSolid( PS_INPUT input ) : SV_Target
 {
 	return vOutputColor;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/*
-
-cbuffer ConstantBuffer
-{
-	matrix World;
-	matrix View;
-	matrix Projection;
-};
-
-
-struct VS_OUTPUT
-{
-	float4 Pos : SV_POSITION;
-	float4 Color : COLOR0;
-};
-
-VS_OUTPUT VS(float4 Pos : POSITION, float4 Color : COLOR)
-{
-	VS_OUTPUT output = (VS_OUTPUT)0;
-
-	output.Pos = mul(Pos, World);
-	output.Pos = mul(output.Pos, View);
-	output.Pos = mul(output.Pos, Projection);
-	output.Color = Color;
-
-	return output;
-}
-
-
-float4 PS(VS_OUTPUT input) : SV_Target
-{
-	return input.Color;
-}
-
-*/

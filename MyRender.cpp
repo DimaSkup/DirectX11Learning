@@ -1,4 +1,4 @@
-// last revising at 01.01.22
+// last revising at 13.01.22
 
 #include "stdafx.h"
 
@@ -203,6 +203,7 @@ bool MyRender::Init(HWND hWnd)
 	// DEFINITION OF THE MODEL DATA
 	VERTEX cubes[] =
 	{
+		// THE FIRST CUBE (center)
 		// the upper side
 		{ XMFLOAT3(-1.0f, 1.0f, -1.0f),  XMFLOAT3( 0.0f,  1.0f,  0.0f ) },
 		{ XMFLOAT3( 1.0f, 1.0f, -1.0f),  XMFLOAT3( 0.0f,  1.0f,  0.0f ) },
@@ -216,21 +217,27 @@ bool MyRender::Init(HWND hWnd)
 		{ XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT3( 0.0f, -1.0f,  0.0f ) },
 
 
+		// THE SECOND CUBE (blue or red)
+		// the left side
 		{ XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT3(-1.0f,  0.0f,  0.0f ) },
 		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(-1.0f,  0.0f,  0.0f ) },
 		{ XMFLOAT3(-1.0f,  1.0f, -1.0f), XMFLOAT3(-1.0f,  0.0f,  0.0f ) },
 		{ XMFLOAT3(-1.0f,  1.0f,  1.0f), XMFLOAT3(-1.0f,  0.0f,  0.0f ) },
 
+		// the right side
 		{ XMFLOAT3( 1.0f, -1.0f,  1.0f), XMFLOAT3( 1.0f,  0.0f,  0.0f ) },
 		{ XMFLOAT3( 1.0f, -1.0f, -1.0f), XMFLOAT3( 1.0f,  0.0f,  0.0f ) },
 		{ XMFLOAT3( 1.0f,  1.0f, -1.0f), XMFLOAT3( 1.0f,  0.0f,  0.0f ) },
 		{ XMFLOAT3( 1.0f,  1.0f,  1.0f), XMFLOAT3( 1.0f,  0.0f,  0.0f ) },
 
+		// THE THIRD CUBE (blue or red)
+		// the back side
 		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3( 0.0f,  0.0f, -1.0f ) },
 		{ XMFLOAT3( 1.0f, -1.0f, -1.0f), XMFLOAT3( 0.0f,  0.0f, -1.0f ) },
 		{ XMFLOAT3( 1.0f,  1.0f, -1.0f), XMFLOAT3( 0.0f,  0.0f, -1.0f ) },
 		{ XMFLOAT3(-1.0f,  1.0f, -1.0f), XMFLOAT3( 0.0f,  0.0f, -1.0f ) },
 
+		// the front side
 		{ XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT3( 0.0f,  0.0f,  1.0f ) },
 		{ XMFLOAT3( 1.0f, -1.0f,  1.0f), XMFLOAT3( 0.0f,  0.0f,  1.0f ) },
 		{ XMFLOAT3( 1.0f,  1.0f,  1.0f), XMFLOAT3( 0.0f,  0.0f,  1.0f ) },
@@ -338,15 +345,14 @@ bool MyRender::Init(HWND hWnd)
 		return false;
 	}
 
-
 	// SPACES MATRICES DEFINITION
 	m_World = XMMatrixIdentity();	// definition of the world matrix	
 	//m_World2 = XMMatrixIdentity();	
 
-	// definition of the view matrix
+									// definition of the view matrix
 	XMVECTOR Eye = XMVectorSet(0.0f, 3.0f, -7.0f, 0.0f);
-	XMVECTOR At  = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-	XMVECTOR Up  = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	XMVECTOR At  = XMVectorSet(0.0f, 1.0f,  0.0f, 0.0f);
+	XMVECTOR Up  = XMVectorSet(0.0f, 1.0f,  0.0f, 0.0f);
 	m_View = XMMatrixLookAtLH(Eye, At, Up);
 
 	// definition of the projection matrix
@@ -357,7 +363,9 @@ bool MyRender::Init(HWND hWnd)
 	return true;
 }
 
+
 /*
+
 void MyRender::Update(void)
 {
 	static float t = 0.0f;				// current rotation angle
@@ -367,17 +375,20 @@ void MyRender::Update(void)
 	if (dwTimeStart == 0)
 		dwTimeStart = dwTimeCur;
 	t = (dwTimeCur - dwTimeStart) / 1000.0f;	// definition of the scene rotation angle
-									
-	m_World1 = XMMatrixRotationY(t);	// get world matrix by the current rotation angle
 
+
+	m_World1 = XMMatrixRotationY(t);	// get world matrix by the current rotation angle
 
 	XMMATRIX mScale = XMMatrixScaling(0.3f, 0.3f, 0.3f);
 	XMMATRIX mRotation = XMMatrixRotationZ(-t);
 	XMMATRIX mTranslate = XMMatrixTranslation(-4.0f, 0.0f, 0.0f);
 	XMMATRIX mOrbit = XMMatrixRotationY(-t * 2.0f);
 
+
 	m_World2 = mScale * mRotation * mTranslate * mOrbit;
 }
+
+
 */
 
 

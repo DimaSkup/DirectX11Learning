@@ -15,7 +15,7 @@ public:
 	bool Draw(void);
 	void Close(void);
 
-	void Update(void);
+	//void Update(void);
 
 	void* operator new(size_t size)
 	{
