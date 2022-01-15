@@ -350,7 +350,7 @@ bool MyRender::Init(HWND hWnd)
 	//m_World2 = XMMatrixIdentity();	
 
 									// definition of the view matrix
-	XMVECTOR Eye = XMVectorSet(0.0f, 3.0f, -7.0f, 0.0f);
+	XMVECTOR Eye = XMVectorSet(0.0f, 3.0f, 7.0f, 0.0f);
 	XMVECTOR At  = XMVectorSet(0.0f, 1.0f,  0.0f, 0.0f);
 	XMVECTOR Up  = XMVectorSet(0.0f, 1.0f,  0.0f, 0.0f);
 	m_View = XMMatrixLookAtLH(Eye, At, Up);
@@ -406,21 +406,22 @@ bool MyRender::Draw(void)
 
 	XMFLOAT4 vLightDirs[2] =
 	{
-		XMFLOAT4(-0.577f, 0.577f, -0.577f, 1.0f), 
-		XMFLOAT4(0.0f, 0.0f, -1.0f, 1.0f),		
+		XMFLOAT4(-0.577f, 0.577, -0.577, 1.0f),	// blue light direction
+		XMFLOAT4(0.0f, 0.0f, -1.0f, 0.0f),		// red light direction
 	};
-
+	
 	XMFLOAT4 vLightColors[2] =
 	{
-		XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f),	// blue colour
-		XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f),	// red colour
+		XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f),		// blue colour
+		XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f),		// red colour
 	};
 
-	// operations to modify the direction of red light
-	XMMATRIX mRotate = XMMatrixRotationY(-2.0f * t);
-	XMVECTOR vLightDir = XMLoadFloat4(&vLightDirs[1]);
-	vLightDir = XMVector3Transform(vLightDir, mRotate);	// multiply the vector on matrix
-	XMStoreFloat4(&vLightDirs[1], vLightDir);
+	// operations to modify a direction of the red light
+	XMMATRIX mRotate = XMMatrixRotationY(-2.0f * t);	// transformation matrix for a vector
+	XMVECTOR vLightDir = XMLoadFloat4(&vLightDirs[1]);	// load XMFLOAT4 into XMVECTOR
+	vLightDir = XMVector3Transform(vLightDir, mRotate);	// transform the vector by the matrix
+	XMStoreFloat4(&vLightDirs[1], vLightDir);			// load XMVECTOR into XMFLOAT4
+
 
 	ConstantBuffer cb1;
 	cb1.mWorld = XMMatrixTranspose(m_World);
@@ -428,7 +429,7 @@ bool MyRender::Draw(void)
 	cb1.mProjection = XMMatrixTranspose(m_Projection);
 
 	cb1.vLightDir[0] = vLightDirs[0];		// blue colour direction
-	cb1.vLightDir[1] = vLightDirs[1];		// red colur direction
+	cb1.vLightDir[1] = vLightDirs[1];		// red colour direction
 	cb1.vLightColor[0] = vLightColors[0];	// blue
 	cb1.vLightColor[1] = vLightColors[1];	// red
 	cb1.vOutputColor = XMFLOAT4(0, 0, 0, 0);

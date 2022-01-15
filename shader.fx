@@ -23,8 +23,7 @@ struct PS_INPUT
 	float3 Norm	: TEXCOORD0;
 };
 
-
-PS_INPUT VS( VS_INPUT input )
+PS_INPUT VS( VS_INPUT input ) 
 {
 	PS_INPUT output = (PS_INPUT)0;
 
