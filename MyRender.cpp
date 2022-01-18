@@ -350,7 +350,7 @@ bool MyRender::Init(HWND hWnd)
 	//m_World2 = XMMatrixIdentity();	
 
 									// definition of the view matrix
-	XMVECTOR Eye = XMVectorSet(0.0f, 3.0f, 7.0f, 0.0f);
+	XMVECTOR Eye = XMVectorSet(0.0f, 3.0f, -7.0f, 0.0f);
 	XMVECTOR At  = XMVectorSet(0.0f, 1.0f,  0.0f, 0.0f);
 	XMVECTOR Up  = XMVectorSet(0.0f, 1.0f,  0.0f, 0.0f);
 	m_View = XMMatrixLookAtLH(Eye, At, Up);
@@ -422,18 +422,19 @@ bool MyRender::Draw(void)
 	vLightDir = XMVector3Transform(vLightDir, mRotate);	// transform the vector by the matrix
 	XMStoreFloat4(&vLightDirs[1], vLightDir);			// load XMVECTOR into XMFLOAT4
 
-
+	// setting up a constant buffer for the main cube drawing
 	ConstantBuffer cb1;
 	cb1.mWorld = XMMatrixTranspose(m_World);
 	cb1.mView = XMMatrixTranspose(m_View);
 	cb1.mProjection = XMMatrixTranspose(m_Projection);
 
-	cb1.vLightDir[0] = vLightDirs[0];		// blue colour direction
-	cb1.vLightDir[1] = vLightDirs[1];		// red colour direction
-	cb1.vLightColor[0] = vLightColors[0];	// blue
-	cb1.vLightColor[1] = vLightColors[1];	// red
+	cb1.vLightDir[0] = vLightDirs[0];	// blue light direction
+	cb1.vLightDir[1] = vLightDirs[1];	// red light directon
+	cb1.vLightColor[0] = vLightColors[0];	// blue colour
+	cb1.vLightColor[1] = vLightColors[1];	// red colour
 	cb1.vOutputColor = XMFLOAT4(0, 0, 0, 0);
 	m_pImmediateContext->UpdateSubresource(m_pConstantBuffer, 0, nullptr, &cb1, 0, 0);
+
 
 	// draw the main cube
 	m_pImmediateContext->VSSetShader(m_pVertexShader, nullptr, 0);
@@ -442,16 +443,19 @@ bool MyRender::Draw(void)
 	m_pImmediateContext->PSSetConstantBuffers(0, 1, &m_pConstantBuffer);
 	m_pImmediateContext->DrawIndexed(36, 0, 0);
 
-	// draw of the cubes  which will show us the direction and colour of the light source
+
+	// here we draw the cubes which show us the light direction and colour of the light source
 	for (int m = 0; m < 2; m++)
 	{
-		// the light direction
-		XMMATRIX mLight = XMMatrixTranslationFromVector(5.0f * XMLoadFloat4(&vLightDirs[m]));
-		// get the smaller cube
-		XMMATRIX mLightScale = XMMatrixScaling(0.2f, 0.2f, 0.2f);
-		mLight = mLightScale * mLight;
+		// translate the cube position
+		XMMATRIX mLightCube = XMMatrixTranslationFromVector(5.0f * XMLoadFloat4(&vLightDirs[m]));
+		
+		// get a smaller cube
+		XMMATRIX mLightScaleCube = XMMatrixScaling(0.2f, 0.2f, 0.2f);
+		mLightCube = mLightScaleCube * mLightCube;
 
-		cb1.mWorld = XMMatrixTranspose(mLight);
+		// setting of a constant buffer for the light cube
+		cb1.mWorld = XMMatrixTranspose(mLightCube);
 		cb1.vOutputColor = vLightColors[m];
 		m_pImmediateContext->UpdateSubresource(m_pConstantBuffer, 0, nullptr, &cb1, 0, 0);
 
