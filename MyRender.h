@@ -1,4 +1,4 @@
-// last revising at 08.01.22
+// last revising at 19.01.22
 
 #include "D3D11_Framework.h"
 #include <xnamath.h>
