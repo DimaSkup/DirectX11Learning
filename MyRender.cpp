@@ -1,4 +1,328 @@
-// last revising at 13.01.22
+// last revising at 20.01.22
+
+#include "stdafx.h"
+#include "MyRender.h"
+#include "Log.h"
+
+#include <type_traits>
+
+using namespace D3D11Framework;
+
+struct VERTEX
+{
+	VERTEX(XMFLOAT3 position, XMFLOAT4 color) :
+		Pos(position), Color(color) { }
+
+	XMFLOAT3 Pos;
+	XMFLOAT4 Color;
+};
+
+struct ConstantBuffer
+{
+	XMMATRIX mWorld;
+	XMMATRIX mView;
+	XMMATRIX mProjection;
+};
+
+
+MyRender::MyRender(void)
+{
+	m_pVertexShader = nullptr;
+	m_pVertexLayout = nullptr;
+	m_pVertexBuffer = nullptr;
+
+	m_pPixelShader = nullptr;
+	m_pPixelShaderSolid = nullptr;
+
+	m_pIndexBuffer = nullptr;
+	m_pConstantBuffer = nullptr;
+
+	Log::Get()->Debug("MyRender::MyRender()");
+}
+
+MyRender::~MyRender(void)
+{
+	Log::Get()->Debug("MyRender::~MyRender()");
+}
+
+bool MyRender::Init(HWND hWnd)
+{
+	HRESULT hr = S_OK;
+
+	// INITIALIZATION OF THE VERTEX SHADER
+	ID3DBlob* pVSBlob = nullptr;
+
+	// compilation of the vertex shader
+	hr = m_compileShaderFromFile(L"shader.fx", "VS", "vs_4_0", &pVSBlob);
+	if (FAILED(hr))
+	{
+		Log::Get()->Error("MyRender::Init(): can't compile the vertex shader");
+		return false;
+	}
+
+	// incapsulate the vertex shade byte code into a vertex shader object
+	hr = m_pd3dDevice->CreateVertexShader(pVSBlob->GetBufferPointer(),
+										  pVSBlob->GetBufferSize(),
+										  nullptr,
+										  &m_pVertexShader);
+	if (FAILED(hr))
+	{
+		Log::Get()->Error("MyRender::Init(): can't create the vertex shader object");
+		_RELEASE(pVSBlob);
+		return false;
+	}
+
+	
+
+	// INITIALIZATION OF THE VERTEX INPUT LAYOUT
+	D3D11_INPUT_ELEMENT_DESC layout[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+	};
+
+	UINT numInputElements = ARRAYSIZE(layout);
+
+	hr = m_pd3dDevice->CreateInputLayout(layout, numInputElements, 
+										 pVSBlob->GetBufferPointer(),
+										 pVSBlob->GetBufferSize(),
+										 &m_pVertexLayout);
+	_RELEASE(pVSBlob);
+	if (FAILED(hr))
+	{
+		Log::Get()->Error("MyRender::Init(): can't create the input vertex layout");
+		return false;
+	}
+
+	m_pImmediateContext->IASetInputLayout(m_pVertexLayout);
+
+
+
+
+	// INITIALIZATION OF THE PIXEL SHADERS
+
+	// compilation of the pixel shader for the main cube
+	ID3DBlob* pPSBlob = nullptr;
+
+	hr = m_compileShaderFromFile(L"shader.fx", "PS", "ps_4_0", &pPSBlob);
+	if (FAILED(hr))
+	{
+		Log::Get()->Error("MyRender::Init(): can't compile the vertex shader");
+		_RELEASE(pPSBlob);
+		return false;
+	}
+	
+	// incapsulation of the vertex shader byte code into a pixel shader object
+	hr = m_pd3dDevice->CreatePixelShader(pPSBlob->GetBufferPointer(),
+										 pPSBlob->GetBufferSize(),
+										 nullptr,
+										 &m_pPixelShader);
+	_RELEASE(pPSBlob);
+	if (FAILED(hr))
+	{
+		Log::Get()->Error("MyRender::Init(): can't create the pixel shader object");
+		return false;
+	}
+
+
+	
+	// a main cube parameters
+	VERTEX cube[] =
+	{
+		{ XMFLOAT3(-1.0f,  1.0f, -1.0f), XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f) },
+		{ XMFLOAT3( 1.0f,  1.0f, -1.0f), XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3( 1.0f,  1.0f,  1.0f), XMFLOAT4(0.0f, 1.0f, 1.0f, 1.0f) },
+		{ XMFLOAT3(-1.0f,  1.0f,  1.0f), XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f) },
+
+		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(1.0f, 0.0f, 1.0f, 1.0f) },
+		{ XMFLOAT3( 1.0f, -1.0f, -1.0f), XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3( 1.0f, -1.0f,  1.0f), XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f) },
+		{ XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f) },
+	};
+
+
+	// the main cube indices
+	WORD indices[] =
+	{
+		// the upper side
+		3,1,0,
+		2,1,3,
+
+		// the right side
+		6,1,2,
+		5,1,6,
+
+		// the left side
+		4,3,0,
+		7,3,4,
+
+		// the front side
+		7,2,3,
+		6,2,7,
+
+		// the bottom side
+		4,6,7,
+		5,6,4,
+
+		// the back side
+		5,0,1,
+		4,0,5,
+	};
+
+
+
+	// INITIALIZATION OF THE VERTEX BUFFER
+	D3D11_BUFFER_DESC bd;
+	ZeroMemory(&bd, sizeof(D3D11_BUFFER_DESC));
+
+	bd.ByteWidth = sizeof(VERTEX) * 24;
+	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bd.Usage = D3D11_USAGE_DEFAULT;
+	bd.CPUAccessFlags = 0;
+
+	D3D11_SUBRESOURCE_DATA initData;
+	initData.pSysMem = cube;
+
+	hr = m_pd3dDevice->CreateBuffer(&bd, &initData, &m_pVertexBuffer);
+	if (FAILED(hr))
+	{
+		Log::Get()->Error("MyRender::Init(): can't create the vertex buffer");
+		return false;
+	}
+
+	UINT stride = sizeof(VERTEX);
+	UINT offset = 0;
+	m_pImmediateContext->IASetVertexBuffers(0, 1, &m_pVertexBuffer, &stride, &offset);
+	m_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+
+	// CREATION OF THE INDEX BUFFER
+	bd.ByteWidth = sizeof(WORD) * 36;
+	bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+
+	initData.pSysMem = indices;
+	hr = m_pd3dDevice->CreateBuffer(&bd, &initData, &m_pIndexBuffer);
+	if (FAILED(hr))
+	{
+		Log::Get()->Error("MyRender::Init(): can't create the index buffer");
+		return false;
+	}
+
+	m_pImmediateContext->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
+
+
+
+	// CREATION OF THE CONSTANT BUFFER
+	bd.ByteWidth = sizeof(ConstantBuffer);
+	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	
+	hr = m_pd3dDevice->CreateBuffer(&bd, nullptr, &m_pConstantBuffer);
+	if (FAILED(hr))
+	{
+		Log::Get()->Error("MyRender::Init(): can't create the constant buffer");
+		return false;
+	}
+
+
+
+	// DEFINITION OF THE SPACES MATRICES
+	m_World = XMMatrixIdentity();
+
+	XMVECTOR Eye = XMVectorSet(0.0f, 3.0f, -7.0f, 0.0f);
+	XMVECTOR At  = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	XMVECTOR Up  = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	m_View = XMMatrixLookAtLH(Eye, At, Up);
+
+	float width = 640.0f;
+	float height = 480.0f;
+	m_Projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, width / height, 0.01f, 100.0f);
+
+	return true;
+}
+
+
+bool MyRender::Draw(void)
+{
+	static float t = 0.0f;				// a rotation angle
+	static DWORD dwTimeStart = 0;		// time of the scene beginning
+	DWORD dwTimeCur = GetTickCount();	// current time
+
+	if (dwTimeStart == 0)
+		dwTimeStart = dwTimeCur;
+	t = (dwTimeCur - dwTimeStart) / 1000.0f;	// calculation of the scene rotation angle
+
+	m_World = XMMatrixRotationY(t);		// get world matrix by the current rotation angle
+
+
+	// initialization of the constant buffer
+	ConstantBuffer cb1;
+	cb1.mWorld = XMMatrixTranspose(m_World);
+	cb1.mView = XMMatrixTranspose(m_View);
+	cb1.mProjection = XMMatrixTranspose(m_Projection);
+	m_pImmediateContext->UpdateSubresource(m_pConstantBuffer, 0, nullptr, &cb1, 0, 0);
+
+
+	// draw the main cube
+	m_pImmediateContext->VSSetShader(m_pVertexShader, nullptr, 0);
+	m_pImmediateContext->VSSetConstantBuffers(0, 1, &m_pConstantBuffer);
+	m_pImmediateContext->PSSetShader(m_pPixelShader, nullptr, 0);
+
+	m_pImmediateContext->DrawIndexed(36, 0, 0);
+
+	return true;
+}
+
+void MyRender::Close(void)
+{
+	m_pImmediateContext->ClearState();
+
+	_RELEASE(m_pConstantBuffer);
+	_RELEASE(m_pIndexBuffer);
+
+	_RELEASE(m_pPixelShaderSolid);
+	_RELEASE(m_pPixelShader);
+
+	_RELEASE(m_pVertexLayout);
+	_RELEASE(m_pVertexBuffer);
+	_RELEASE(m_pVertexShader);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
 
 #include "stdafx.h"
 
@@ -11,74 +335,74 @@ using namespace D3D11Framework;
 
 struct VERTEX
 {
-	VERTEX(XMFLOAT3 vertex, XMFLOAT3 normal) :
-		Pos(vertex), Normal(normal) {}
+VERTEX(XMFLOAT3 vertex, XMFLOAT3 normal) :
+Pos(vertex), Normal(normal) {}
 
-	XMFLOAT3 Pos;
-	XMFLOAT3 Normal;
-	//XMFLOAT4 Color;
+XMFLOAT3 Pos;
+XMFLOAT3 Normal;
+//XMFLOAT4 Color;
 };
 
-/*
+
 
 class Circle
 {
 public:
-	Circle(int cX, int cY, int rad, int det = 30) 
-	{
-		radius = rad;
-		centerX = cX;
-		centerY = cY;
-		detalization = det;
-		degree = 0;
-		centerPoint = VERTEX(
-			(centerX) / 100.0f - 0.5f,
-			(centerY) / 100.0f - 0.5f,
-			0.0f);
+Circle(int cX, int cY, int rad, int det = 30)
+{
+radius = rad;
+centerX = cX;
+centerY = cY;
+detalization = det;
+degree = 0;
+centerPoint = VERTEX(
+(centerX) / 100.0f - 0.5f,
+(centerY) / 100.0f - 0.5f,
+0.0f);
 
-		calculateCircle();
-	}
+calculateCircle();
+}
 
-	auto GetVerticesData(void) const { return circleVertexBuffer.begin()._Ptr; }
+auto GetVerticesData(void) const { return circleVertexBuffer.begin()._Ptr; }
 
 private:
-	void calculateCircle(void)
-	{
-		circleVertexBuffer.push_back(centerPoint);			// the first point: the centre of the circle
-		circleVertexBuffer.push_back(calcPoint());			// the second point: upper
-		circleVertexBuffer.push_back(calcPoint());			// the third point: right-bottom
-		int indexOfPreviousVertex = circleVertexBuffer.size() - 1;
-		
-		for (UINT i = 1; i < 60; i++)
-		{
-			circleVertexBuffer.push_back(centerPoint);			// the center
-			circleVertexBuffer.push_back(circleVertexBuffer[indexOfPreviousVertex]);	// the prev point on the circle	
-			circleVertexBuffer.push_back(calcPoint());		// a new point on the circle
-			indexOfPreviousVertex += 3;
-		}
-		
-	}
+void calculateCircle(void)
+{
+circleVertexBuffer.push_back(centerPoint);			// the first point: the centre of the circle
+circleVertexBuffer.push_back(calcPoint());			// the second point: upper
+circleVertexBuffer.push_back(calcPoint());			// the third point: right-bottom
+int indexOfPreviousVertex = circleVertexBuffer.size() - 1;
 
-	VERTEX calcPoint(void)
-	{
-		degree += 3.14159 / detalization;
+for (UINT i = 1; i < 60; i++)
+{
+circleVertexBuffer.push_back(centerPoint);			// the center
+circleVertexBuffer.push_back(circleVertexBuffer[indexOfPreviousVertex]);	// the prev point on the circle
+circleVertexBuffer.push_back(calcPoint());		// a new point on the circle
+indexOfPreviousVertex += 3;
+}
 
-		return VERTEX(
-			(centerX + sin(degree) * radius) / 100.0f - 0.5f,
-			(centerX + cos(degree) * radius) / 100.0f - 0.5f,
-			0.0f);
-	}
+}
 
-	VERTEX centerPoint;
-	std::vector<VERTEX> circleVertexBuffer;
-	int detalization;
-	int radius;
-	float centerX;
-	float centerY;
-	float degree;
+VERTEX calcPoint(void)
+{
+degree += 3.14159 / detalization;
+
+return VERTEX(
+(centerX + sin(degree) * radius) / 100.0f - 0.5f,
+(centerX + cos(degree) * radius) / 100.0f - 0.5f,
+0.0f);
+}
+
+VERTEX centerPoint;
+std::vector<VERTEX> circleVertexBuffer;
+int detalization;
+int radius;
+float centerX;
+float centerY;
+float degree;
 };
 
-*/
+
 
 struct ConstantBuffer
 {
@@ -117,7 +441,7 @@ bool MyRender::Init(HWND hWnd)
 
 	// CREATION OF THE VERTEX SHADER
 	ID3DBlob* pVertexShader = nullptr;
-	 
+
 	hr = m_compileShaderFromFile(L"shader.fx", "VS", "vs_4_0", &pVertexShader);
 	if (FAILED(hr))
 	{
@@ -127,9 +451,9 @@ bool MyRender::Init(HWND hWnd)
 	}
 
 	hr = m_pd3dDevice->CreateVertexShader(pVertexShader->GetBufferPointer(),
-											pVertexShader->GetBufferSize(),
-											nullptr,
-											&m_pVertexShader);
+		pVertexShader->GetBufferSize(),
+		nullptr,
+		&m_pVertexShader);
 	if (FAILED(hr))
 	{
 		_RELEASE(pVertexShader);
@@ -148,10 +472,10 @@ bool MyRender::Init(HWND hWnd)
 
 	UINT numInputElements = ARRAYSIZE(ied);
 
-	hr = m_pd3dDevice->CreateInputLayout(ied, numInputElements, 
-										 pVertexShader->GetBufferPointer(),
-										 pVertexShader->GetBufferSize(),
-										 &m_pVertexLayout);
+	hr = m_pd3dDevice->CreateInputLayout(ied, numInputElements,
+		pVertexShader->GetBufferPointer(),
+		pVertexShader->GetBufferSize(),
+		&m_pVertexLayout);
 	_RELEASE(pVertexShader);
 	if (FAILED(hr))
 	{
@@ -174,9 +498,9 @@ bool MyRender::Init(HWND hWnd)
 	}
 
 	hr = m_pd3dDevice->CreatePixelShader(pPixelShader->GetBufferPointer(),
-										 pPixelShader->GetBufferSize(),
-										 nullptr,
-										 &m_pPixelShader);
+		pPixelShader->GetBufferSize(),
+		nullptr,
+		&m_pPixelShader);
 	_RELEASE(pPixelShader);
 	if (FAILED(hr))
 	{
@@ -188,10 +512,10 @@ bool MyRender::Init(HWND hWnd)
 	if (FAILED(hr))
 		return false;
 
-	hr = m_pd3dDevice->CreatePixelShader(pPixelShader->GetBufferPointer(), 
-										 pPixelShader->GetBufferSize(),
-										 nullptr,
-										 &m_pPixelShaderSolid);
+	hr = m_pd3dDevice->CreatePixelShader(pPixelShader->GetBufferPointer(),
+		pPixelShader->GetBufferSize(),
+		nullptr,
+		&m_pPixelShaderSolid);
 	_RELEASE(pPixelShader);
 	if (FAILED(hr))
 	{
@@ -205,43 +529,43 @@ bool MyRender::Init(HWND hWnd)
 	{
 		// THE FIRST CUBE (center)
 		// the upper side
-		{ XMFLOAT3(-1.0f, 1.0f, -1.0f),  XMFLOAT3( 0.0f,  1.0f,  0.0f ) },
-		{ XMFLOAT3( 1.0f, 1.0f, -1.0f),  XMFLOAT3( 0.0f,  1.0f,  0.0f ) },
-		{ XMFLOAT3( 1.0f, 1.0f,  1.0f),  XMFLOAT3( 0.0f,  1.0f,  0.0f ) },
-		{ XMFLOAT3(-1.0f, 1.0f,  1.0f),  XMFLOAT3( 0.0f,  1.0f,  0.0f ) },
+		{ XMFLOAT3(-1.0f, 1.0f, -1.0f),  XMFLOAT3(0.0f,  1.0f,  0.0f) },
+		{ XMFLOAT3(1.0f, 1.0f, -1.0f),  XMFLOAT3(0.0f,  1.0f,  0.0f) },
+		{ XMFLOAT3(1.0f, 1.0f,  1.0f),  XMFLOAT3(0.0f,  1.0f,  0.0f) },
+		{ XMFLOAT3(-1.0f, 1.0f,  1.0f),  XMFLOAT3(0.0f,  1.0f,  0.0f) },
 
 		// the bottom size
-		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3( 0.0f, -1.0f,  0.0f ) },
-		{ XMFLOAT3( 1.0f, -1.0f, -1.0f), XMFLOAT3( 0.0f, -1.0f,  0.0f ) },
-		{ XMFLOAT3( 1.0f, -1.0f,  1.0f), XMFLOAT3( 0.0f, -1.0f,  0.0f ) },
-		{ XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT3( 0.0f, -1.0f,  0.0f ) },
+		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, -1.0f,  0.0f) },
+		{ XMFLOAT3(1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, -1.0f,  0.0f) },
+		{ XMFLOAT3(1.0f, -1.0f,  1.0f), XMFLOAT3(0.0f, -1.0f,  0.0f) },
+		{ XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT3(0.0f, -1.0f,  0.0f) },
 
 
 		// THE SECOND CUBE (blue or red)
 		// the left side
-		{ XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT3(-1.0f,  0.0f,  0.0f ) },
-		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(-1.0f,  0.0f,  0.0f ) },
-		{ XMFLOAT3(-1.0f,  1.0f, -1.0f), XMFLOAT3(-1.0f,  0.0f,  0.0f ) },
-		{ XMFLOAT3(-1.0f,  1.0f,  1.0f), XMFLOAT3(-1.0f,  0.0f,  0.0f ) },
+		{ XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT3(-1.0f,  0.0f,  0.0f) },
+		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(-1.0f,  0.0f,  0.0f) },
+		{ XMFLOAT3(-1.0f,  1.0f, -1.0f), XMFLOAT3(-1.0f,  0.0f,  0.0f) },
+		{ XMFLOAT3(-1.0f,  1.0f,  1.0f), XMFLOAT3(-1.0f,  0.0f,  0.0f) },
 
 		// the right side
-		{ XMFLOAT3( 1.0f, -1.0f,  1.0f), XMFLOAT3( 1.0f,  0.0f,  0.0f ) },
-		{ XMFLOAT3( 1.0f, -1.0f, -1.0f), XMFLOAT3( 1.0f,  0.0f,  0.0f ) },
-		{ XMFLOAT3( 1.0f,  1.0f, -1.0f), XMFLOAT3( 1.0f,  0.0f,  0.0f ) },
-		{ XMFLOAT3( 1.0f,  1.0f,  1.0f), XMFLOAT3( 1.0f,  0.0f,  0.0f ) },
+		{ XMFLOAT3(1.0f, -1.0f,  1.0f), XMFLOAT3(1.0f,  0.0f,  0.0f) },
+		{ XMFLOAT3(1.0f, -1.0f, -1.0f), XMFLOAT3(1.0f,  0.0f,  0.0f) },
+		{ XMFLOAT3(1.0f,  1.0f, -1.0f), XMFLOAT3(1.0f,  0.0f,  0.0f) },
+		{ XMFLOAT3(1.0f,  1.0f,  1.0f), XMFLOAT3(1.0f,  0.0f,  0.0f) },
 
 		// THE THIRD CUBE (blue or red)
 		// the back side
-		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3( 0.0f,  0.0f, -1.0f ) },
-		{ XMFLOAT3( 1.0f, -1.0f, -1.0f), XMFLOAT3( 0.0f,  0.0f, -1.0f ) },
-		{ XMFLOAT3( 1.0f,  1.0f, -1.0f), XMFLOAT3( 0.0f,  0.0f, -1.0f ) },
-		{ XMFLOAT3(-1.0f,  1.0f, -1.0f), XMFLOAT3( 0.0f,  0.0f, -1.0f ) },
+		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f,  0.0f, -1.0f) },
+		{ XMFLOAT3(1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f,  0.0f, -1.0f) },
+		{ XMFLOAT3(1.0f,  1.0f, -1.0f), XMFLOAT3(0.0f,  0.0f, -1.0f) },
+		{ XMFLOAT3(-1.0f,  1.0f, -1.0f), XMFLOAT3(0.0f,  0.0f, -1.0f) },
 
 		// the front side
-		{ XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT3( 0.0f,  0.0f,  1.0f ) },
-		{ XMFLOAT3( 1.0f, -1.0f,  1.0f), XMFLOAT3( 0.0f,  0.0f,  1.0f ) },
-		{ XMFLOAT3( 1.0f,  1.0f,  1.0f), XMFLOAT3( 0.0f,  0.0f,  1.0f ) },
-		{ XMFLOAT3(-1.0f,  1.0f,  1.0f), XMFLOAT3( 0.0f,  0.0f,  1.0f ) },
+		{ XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT3(0.0f,  0.0f,  1.0f) },
+		{ XMFLOAT3(1.0f, -1.0f,  1.0f), XMFLOAT3(0.0f,  0.0f,  1.0f) },
+		{ XMFLOAT3(1.0f,  1.0f,  1.0f), XMFLOAT3(0.0f,  0.0f,  1.0f) },
+		{ XMFLOAT3(-1.0f,  1.0f,  1.0f), XMFLOAT3(0.0f,  0.0f,  1.0f) },
 	};
 
 
@@ -274,32 +598,6 @@ bool MyRender::Init(HWND hWnd)
 	// CREATION OF THE INDEX BUFFER
 	WORD indices[] =
 	{
-	/*
-		// the upper side
-		3, 1, 0,
-		2, 1, 3,
-
-		// the front side
-		2, 3, 7,
-		6, 2, 7,
-
-		// the right side
-		6, 1, 2,
-		5, 1, 6,
-
-		// the left side
-		4, 3, 0,
-		7, 3, 4,
-
-		// the back side
-		5, 0, 1,
-		4, 0, 5,
-
-		// the bottom side
-		4, 6, 7,
-		5, 6, 4,
-	*/
-
 		3,1,0,
 		2,1,3,
 
@@ -347,12 +645,12 @@ bool MyRender::Init(HWND hWnd)
 
 	// SPACES MATRICES DEFINITION
 	m_World = XMMatrixIdentity();	// definition of the world matrix	
-	//m_World2 = XMMatrixIdentity();	
+									//m_World2 = XMMatrixIdentity();	
 
 									// definition of the view matrix
 	XMVECTOR Eye = XMVectorSet(0.0f, 3.0f, -7.0f, 0.0f);
-	XMVECTOR At  = XMVectorSet(0.0f, 1.0f,  0.0f, 0.0f);
-	XMVECTOR Up  = XMVectorSet(0.0f, 1.0f,  0.0f, 0.0f);
+	XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	m_View = XMMatrixLookAtLH(Eye, At, Up);
 
 	// definition of the projection matrix
@@ -368,28 +666,27 @@ bool MyRender::Init(HWND hWnd)
 
 void MyRender::Update(void)
 {
-	static float t = 0.0f;				// current rotation angle
-	static DWORD dwTimeStart = 0;		// beginning time of the scene
-	DWORD dwTimeCur = GetTickCount();	// time from the beginning of the scene
+static float t = 0.0f;				// current rotation angle
+static DWORD dwTimeStart = 0;		// beginning time of the scene
+DWORD dwTimeCur = GetTickCount();	// time from the beginning of the scene
 
-	if (dwTimeStart == 0)
-		dwTimeStart = dwTimeCur;
-	t = (dwTimeCur - dwTimeStart) / 1000.0f;	// definition of the scene rotation angle
-
-
-	m_World1 = XMMatrixRotationY(t);	// get world matrix by the current rotation angle
-
-	XMMATRIX mScale = XMMatrixScaling(0.3f, 0.3f, 0.3f);
-	XMMATRIX mRotation = XMMatrixRotationZ(-t);
-	XMMATRIX mTranslate = XMMatrixTranslation(-4.0f, 0.0f, 0.0f);
-	XMMATRIX mOrbit = XMMatrixRotationY(-t * 2.0f);
+if (dwTimeStart == 0)
+dwTimeStart = dwTimeCur;
+t = (dwTimeCur - dwTimeStart) / 1000.0f;	// definition of the scene rotation angle
 
 
-	m_World2 = mScale * mRotation * mTranslate * mOrbit;
+m_World1 = XMMatrixRotationY(t);	// get world matrix by the current rotation angle
+
+XMMATRIX mScale = XMMatrixScaling(0.3f, 0.3f, 0.3f);
+XMMATRIX mRotation = XMMatrixRotationZ(-t);
+XMMATRIX mTranslate = XMMatrixTranslation(-4.0f, 0.0f, 0.0f);
+XMMATRIX mOrbit = XMMatrixRotationY(-t * 2.0f);
+
+
+m_World2 = mScale * mRotation * mTranslate * mOrbit;
 }
 
 
-*/
 
 
 bool MyRender::Draw(void)
@@ -409,7 +706,7 @@ bool MyRender::Draw(void)
 		XMFLOAT4(-0.577f, 0.577, -0.577, 1.0f),	// blue light direction
 		XMFLOAT4(0.0f, 0.0f, -1.0f, 0.0f),		// red light direction
 	};
-	
+
 	XMFLOAT4 vLightColors[2] =
 	{
 		XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f),		// blue colour
@@ -422,7 +719,7 @@ bool MyRender::Draw(void)
 	vLightDir = XMVector3Transform(vLightDir, mRotate);	// transform the vector by the matrix
 	XMStoreFloat4(&vLightDirs[1], vLightDir);			// load XMVECTOR into XMFLOAT4
 
-	// setting up a constant buffer for the main cube drawing
+														// setting up a constant buffer for the main cube drawing
 	ConstantBuffer cb1;
 	cb1.mWorld = XMMatrixTranspose(m_World);
 	cb1.mView = XMMatrixTranspose(m_View);
@@ -449,7 +746,7 @@ bool MyRender::Draw(void)
 	{
 		// translate the cube position
 		XMMATRIX mLightCube = XMMatrixTranslationFromVector(5.0f * XMLoadFloat4(&vLightDirs[m]));
-		
+
 		// get a smaller cube
 		XMMATRIX mLightScaleCube = XMMatrixScaling(0.2f, 0.2f, 0.2f);
 		mLightCube = mLightScaleCube * mLightCube;
@@ -479,3 +776,4 @@ void MyRender::Close(void)
 	_RELEASE(m_pPixelShader);
 	_RELEASE(m_pPixelShaderSolid);
 }
+*/
