@@ -1,24 +1,26 @@
 #include "stdafx.h"
 #include "MyRender.h"
+#include "MyInput.h"
+
+using namespace D3D11Framework;
 
 int main()
 {
 	Framework framework;
-	MyRender* render = new MyRender();
+	MyInput* myInput = new MyInput();
+	MyRender* myRender = new MyRender();
+	
+	framework.SetRender(myRender);
 
-	FrameworkDesc desc;
-	desc.wnd.width = 640;
-	desc.wnd.height = 480;
-	desc.render = static_cast<Render*>(render);
 
-	if (framework.Init(desc))
+	if (framework.Init())
 	{
+		framework.AddInputListener(myInput);
 		framework.Run();
 	}
+		
 
 	framework.Close();
-
-
 
 	return 0;
 }
