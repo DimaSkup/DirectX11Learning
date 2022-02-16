@@ -35,6 +35,8 @@ MyRender::MyRender(void)
 
 	m_pConstantBuffer = nullptr;
 	m_pIndexBuffer = nullptr;
+
+	//m_camera = new Camera();
 	Log::Get()->Debug("MyRender::MyRender()");
 }
 
@@ -277,15 +279,15 @@ bool MyRender::Init(HWND hWnd)
 		return false;
 	}
 
-
-
 	// definition of the matrices
 	m_World = XMMatrixIdentity();
 
+	/*
 	XMVECTOR Eye = XMVectorSet(0.0f, 3.0f, -7.0f, 0.0f);
-	XMVECTOR At  = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-	XMVECTOR Up  = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	m_View = XMMatrixLookAtLH(Eye, At, Up);
+	*/
 
 	UINT width = Window::Get()->GetWidth();
 	UINT height = Window::Get()->GetHeight();
@@ -308,11 +310,6 @@ void MyRender::Update(void)
 	m_World = XMMatrixRotationY(t);
 }
 */
-
-void MyRender::SetInputListener(MyInput* listener)
-{
-	myInputListener = listener;
-}
 
 bool MyRender::Draw(void)
 {
@@ -337,9 +334,9 @@ bool MyRender::Draw(void)
 
 	XMFLOAT4 vLightColors[3] =
 	{
-		XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f),			// blue colour
-		XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f),			// red colour
-		XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f),			// green colour
+		XMFLOAT4(0.1f, 0.1f, 0.1f, 1.0f),			// blue colour
+		XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f),			// red colour
+		XMFLOAT4(0.0f, 1.0f, 1.0f, 1.0f),			// green colour
 	};
 
 	UINT numLightDirs = ARRAYSIZE(vLightDirs);
@@ -359,7 +356,9 @@ bool MyRender::Draw(void)
 	ConstantBuffer cb1;
 
 	cb1.mWorld = XMMatrixTranspose(m_World);
-	cb1.mView = XMMatrixTranspose(m_View);
+	//cb1.mView = XMMatrixTranspose(m_camera->GetCameraView());
+	
+	cb1.mView = XMMatrixTranspose(GetCamera()->GetCameraView());
 	cb1.mProjection = XMMatrixTranspose(m_Projection);
 	cb1.vLightDir[0] = vLightDirs[0];
 	cb1.vLightDir[1] = vLightDirs[1];

@@ -15,8 +15,6 @@ public:
 	//void Update(void);
 	void Close(void);
 
-	void SetInputListener(MyInput* listener);
-
 	void* operator new (size_t size)
 	{
 		void* ptr = _aligned_malloc(size, 16);
@@ -41,6 +39,8 @@ public:
 	}
 
 private:
+	//Camera* m_camera;
+
 	ID3D11VertexShader* m_pVertexShader;
 	ID3D11PixelShader* m_pPixelShader;
 	ID3D11PixelShader* m_pPixelShaderSolid;
@@ -54,5 +54,5 @@ private:
 	XMMATRIX m_View;
 	XMMATRIX m_Projection;
 
-	MyInput* myInputListener;
+	
 };

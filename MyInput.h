@@ -1,14 +1,34 @@
 #pragma once
-#include "MyRender.h"
+
+using namespace D3D11Framework;
 
 class MyInput : public InputListener
 {
 public:
 
+	
 	bool KeyPressed(const KeyEvent &arg)
 	{
 		printf("%c button is pressed\n", arg.wch);
 		button = arg.wch;
+
+		switch (button)
+		{
+		case 'w':
+			Framework::GetCamera()->ModifyCameraView({ 0.0f, 0.0f, 0.3f }, { 0.0f, 0.0f, 0.3f });
+			break;
+		case 's':
+			Framework::GetCamera()->ModifyCameraView({ 0.0f, 0.0f, -0.3f }, { 0.0f, 0.0f, -0.3f });
+			break;
+		case 'a':
+			Framework::GetCamera()->ModifyCameraView({ 0.0f, 0.0f, 0.0f }, { -0.2f, 0.0f, 0.0f });
+			break;
+		case 'd':
+			Framework::GetCamera()->ModifyCameraView({ 0.0f, 0.0f, 0.0f }, { 0.2f, 0.0f, 0.0f });
+			break;
+		}
+		
+
 		return false;
 	}
 
