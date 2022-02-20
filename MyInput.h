@@ -2,9 +2,26 @@
 
 using namespace D3D11Framework;
 
+
+
 class MyInput : public InputListener
 {
 public:
+	bool MouseMove(const MouseEvent &arg)
+	{
+		printf("the cursor at %d:%d\n", arg.x, arg.y);
+		
+		POINT cur = { arg.x, arg.y };
+		UINT width = 640;
+		UINT height = 480;
+		UINT midWidth = width / 2;
+		UINT midHeight = height / 2;
+
+		
+		
+
+		return false;
+	}
 
 	
 	bool KeyPressed(const KeyEvent &arg)
@@ -60,4 +77,5 @@ public:
 	}
 
 	wchar_t button;
+
 };

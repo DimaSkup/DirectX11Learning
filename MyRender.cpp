@@ -7,6 +7,7 @@
 
 using namespace D3D11Framework;
 
+/*
 struct ConstantBuffer
 {
 	XMMATRIX mWorld;
@@ -17,11 +18,18 @@ struct ConstantBuffer
 	XMFLOAT4 vLightColor[3];
 	XMFLOAT4 vOutputColor;
 };
+*/
+
+struct ConstantBuffer
+{
+	XMMATRIX WVP;
+};
 
 struct VERTEX
 {
 	XMFLOAT3 Pos;
-	XMFLOAT3 Normal;
+	XMFLOAT2 Tex;
+	//XMFLOAT3 Normal;
 	//XMFLOAT4 Color;
 };
 
@@ -35,6 +43,10 @@ MyRender::MyRender(void)
 
 	m_pConstantBuffer = nullptr;
 	m_pIndexBuffer = nullptr;
+
+	m_pTextureRV = nullptr;
+	m_pSamplerLinear = nullptr;
+	m_rot = 0.01;
 
 	//m_camera = new Camera();
 	Log::Get()->Debug("MyRender::MyRender()");
@@ -71,10 +83,10 @@ bool MyRender::Init(HWND hWnd)
 	D3D11_INPUT_ELEMENT_DESC ied[] = 
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		//{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		//{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
 	};
-
 	UINT numInputElements = ARRAYSIZE(ied);
 
 	hr = m_pd3dDevice->CreateInputLayout(ied, 
@@ -98,7 +110,7 @@ bool MyRender::Init(HWND hWnd)
 	hr = m_compileShaderFromFile(L"shader.fx", "PS", "ps_4_0", &pPSBlob);
 	if (FAILED(hr))
 	{
-		Log::Get()->Error("MyRender::Init(): can't compile the pixel shader for the main cube");
+		Log::Get()->Error("MyRender::Init(): can't compile the pixel shader");
 		return false;
 	}
 
@@ -113,28 +125,8 @@ bool MyRender::Init(HWND hWnd)
 		return false;
 	}
 
-	
-	// creation of pixel shader for the light cubes
-	hr = m_compileShaderFromFile(L"shader.fx", "PSsolid", "ps_4_0", &pPSBlob);
-	if (FAILED(hr))
-	{
-		Log::Get()->Error("MyRender::Init(): can't compile the pixel shader for the light cubes");
-		return false;
-	}
 
-	hr = m_pd3dDevice->CreatePixelShader(pPSBlob->GetBufferPointer(),
-										 pPSBlob->GetBufferSize(),
-										 nullptr,
-										 &m_pPixelShaderSolid);
-	_RELEASE(pPSBlob);
-	if (FAILED(hr))
-	{
-		Log::Get()->Error("MyRender::Init(): can't create the pixel shader OBJECT (light cubes)");
-		return false;
-	}
-
-
-	// definition of the cubes params
+	// definition of the cube params (coordinates and colours)
 	/*
 	VERTEX cube[] =
 	{
@@ -152,6 +144,8 @@ bool MyRender::Init(HWND hWnd)
 	};
 	*/
 
+	/*
+	// definition of the cube params (coordinates and normals)
 	VERTEX cubes[] =
 	{
 		// the main cube
@@ -190,8 +184,49 @@ bool MyRender::Init(HWND hWnd)
 		{ XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
 		{ XMFLOAT3(-1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
 	};
+	*/
 
-	UINT numVertices = ARRAYSIZE(cubes);
+	// definition of the cube params (vertices coordinates and texture coordinates)
+	VERTEX cube[] =
+	{
+		// the upper and bottom sides
+		{ XMFLOAT3(-1.0f,  1.0f, -1.0f), XMFLOAT2(0.0f, 0.0f) },
+		{ XMFLOAT3( 1.0f,  1.0f, -1.0f), XMFLOAT2(1.0f, 0.0f) },
+		{ XMFLOAT3( 1.0f,  1.0f,  1.0f), XMFLOAT2(1.0f, 1.0f) },
+		{ XMFLOAT3(-1.0f,  1.0f,  1.0f), XMFLOAT2(0.0f, 1.0f) },
+
+		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT2(0.0f, 0.0f) },
+		{ XMFLOAT3( 1.0f, -1.0f, -1.0f), XMFLOAT2(1.0f, 0.0f) },
+		{ XMFLOAT3( 1.0f, -1.0f,  1.0f), XMFLOAT2(1.0f, 1.0f) },
+		{ XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT2(0.0f, 1.0f) },
+
+
+
+		// the left and right sides
+		{ XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT2(0.0f, 0.0f) },
+		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT2(1.0f, 0.0f) },
+		{ XMFLOAT3(-1.0f,  1.0f, -1.0f), XMFLOAT2(1.0f, 1.0f) },
+		{ XMFLOAT3(-1.0f,  1.0f,  1.0f), XMFLOAT2(0.0f, 1.0f) },
+
+		{ XMFLOAT3( 1.0f, -1.0f,  1.0f), XMFLOAT2(0.0f, 0.0f) },
+		{ XMFLOAT3( 1.0f, -1.0f, -1.0f), XMFLOAT2(1.0f, 0.0f) },
+		{ XMFLOAT3( 1.0f,  1.0f, -1.0f), XMFLOAT2(1.0f, 1.0f) },
+		{ XMFLOAT3( 1.0f,  1.0f,  1.0f), XMFLOAT2(0.0f, 1.0f) },
+
+
+		// the back and front sides
+		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT2(0.0f, 0.0f) },
+		{ XMFLOAT3( 1.0f, -1.0f, -1.0f), XMFLOAT2(1.0f, 0.0f) },
+		{ XMFLOAT3( 1.0f,  1.0f, -1.0f), XMFLOAT2(1.0f, 1.0f) },
+		{ XMFLOAT3(-1.0f,  1.0f, -1.0f), XMFLOAT2(0.0f, 1.0f) },
+
+		{ XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT2(0.0f, 0.0f) },
+		{ XMFLOAT3( 1.0f, -1.0f,  1.0f), XMFLOAT2(1.0f, 0.0f) },
+		{ XMFLOAT3( 1.0f,  1.0f,  1.0f), XMFLOAT2(1.0f, 1.0f) },
+		{ XMFLOAT3(-1.0f,  1.0f,  1.0f), XMFLOAT2(0.0f, 1.0f) },
+	};
+
+	UINT numVertices = ARRAYSIZE(cube);
 
 	// creation of the vertex buffer
 	D3D11_BUFFER_DESC bd;
@@ -203,8 +238,8 @@ bool MyRender::Init(HWND hWnd)
 	bd.CPUAccessFlags = 0;
 
 	D3D11_SUBRESOURCE_DATA initData;
-	//ZeroMemory(&initData, sizeof(D3D11_SUBRESOURCE_DATA));
-	initData.pSysMem = cubes;
+	ZeroMemory(&initData, sizeof(D3D11_SUBRESOURCE_DATA));
+	initData.pSysMem = cube;
 
 	hr = m_pd3dDevice->CreateBuffer(&bd, &initData, &m_pVertexBuffer);
 	if (FAILED(hr))
@@ -222,7 +257,6 @@ bool MyRender::Init(HWND hWnd)
 	// definition of the indices
 	WORD indices[] =
 	{
-		// the main cube
 		// up
 		3,1,0,
 		2,1,3,
@@ -231,22 +265,23 @@ bool MyRender::Init(HWND hWnd)
 		4,6,7,
 		5,6,4,
 
-		// the red light cube
+		// left
 		9,11,10,
 		8,11,9,
 
+		// right
 		12,14,15,
 		13,14,12,
 
 
-		// the blue light cube
+		// back
 		20,22,23,
 		21,22,20,
 
+		// front
 		17,19,18,
 		16,19,17,
 	};
-
 	UINT numIndices = ARRAYSIZE(indices);
 	Log::Get()->Print("NUM Vertices: %d", numVertices);
 	Log::Get()->Print("NUM Indices: %d", numIndices);
@@ -279,20 +314,45 @@ bool MyRender::Init(HWND hWnd)
 		return false;
 	}
 
-	// definition of the matrices
-	m_World = XMMatrixIdentity();
 
-	/*
-	XMVECTOR Eye = XMVectorSet(0.0f, 3.0f, -7.0f, 0.0f);
-	XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-	XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-	m_View = XMMatrixLookAtLH(Eye, At, Up);
-	*/
+	hr = D3DX11CreateShaderResourceViewFromFile(m_pd3dDevice, L"texture2.png",
+												NULL, NULL,
+												&m_pTextureRV, NULL);
+	if (FAILED(hr))
+	{
+		Log::Get()->Error("MyRender::Init(): can't create a shader resource view");
+		return false;
+	}
+
+	
+	// definition of the sampler state
+	D3D11_SAMPLER_DESC sampDesc;
+	ZeroMemory(&sampDesc, sizeof(D3D11_SAMPLER_DESC));
+
+	sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	sampDesc.MinLOD = 0;
+	sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+	hr = m_pd3dDevice->CreateSamplerState(&sampDesc, &m_pSamplerLinear);
+	if (FAILED(hr))
+	{
+		Log::Get()->Error("MyRender::Init(): can't create the sampler state");
+		return false;
+	}
+
+
+	// definition of the matrices
+	m_World1 = XMMatrixIdentity();
+	m_World2 = XMMatrixIdentity();
 
 	UINT width = Window::Get()->GetWidth();
 	UINT height = Window::Get()->GetHeight();
 	m_Projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, width / height, 0.01f, 100.0f);
-
+	
 	return true;
 }
 
@@ -313,6 +373,110 @@ void MyRender::Update(void)
 
 bool MyRender::Draw(void)
 {
+	m_rot += 0.0005f;
+	if (m_rot == 6.26f)
+		m_rot = 0.0f;
+
+	m_View = Framework::GetCamera()->GetView();
+
+	XMVECTOR rotaxis = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	XMMATRIX Rotation = XMMatrixRotationAxis(rotaxis, m_rot);
+	XMMATRIX Translation = XMMatrixTranslation(0.0f, 0.0f, 4.0f);
+
+	m_World1 = Translation * Rotation;
+
+	Rotation = XMMatrixRotationAxis(rotaxis, -m_rot);
+	XMMATRIX Scale = XMMatrixScaling(1.3f, 1.3f, 1.3f);
+
+	m_World2 = Rotation * Scale;
+
+	XMMATRIX WVP = m_World1 * m_View * m_Projection;
+	ConstantBuffer cb;
+	cb.WVP = XMMatrixTranspose(WVP);
+	m_pImmediateContext->UpdateSubresource(m_pConstantBuffer, NULL, nullptr, &cb, 0, 0);
+
+	m_pImmediateContext->VSSetShader(m_pVertexShader, nullptr, 0);
+	m_pImmediateContext->VSSetConstantBuffers(0, 1, &m_pConstantBuffer);
+	m_pImmediateContext->PSSetShader(m_pPixelShader, nullptr, 0);
+	m_pImmediateContext->PSSetShaderResources(0, 1, &m_pTextureRV);
+	m_pImmediateContext->PSSetSamplers(0, 1, &m_pSamplerLinear);
+	m_pImmediateContext->DrawIndexed(36, 0, 0);
+
+	WVP = m_World2 * m_View * m_Projection;
+	cb.WVP = XMMatrixTranspose(WVP);
+	m_pImmediateContext->UpdateSubresource(m_pConstantBuffer, NULL, nullptr, &cb, 0, 0);
+
+	m_pImmediateContext->DrawIndexed(36, 0, 0);
+
+	return true;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+
+bool MyRender::Draw()
+{
+	m_rot += 0.0005f;
+	if (m_rot == 6.26f)
+		m_rot = 0.0f;
+	
+	m_View = Framework::GetCamera()->GetView();
+	XMVECTOR rotaxis = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	XMMATRIX Rotation = XMMatrixRotationAxis(rotaxis, m_rot);
+	XMMATRIX Translation = XMMatrixTranslation(0.0f, 0.0f, 4.0f);
+
+	m_World1 = Translation * Rotation;
+
+	Rotation = XMMatrixRotationAxis(rotaxis, -m_rot);
+	XMMATRIX Scale = XMMatrixScaling(1.3f, 1.3f, 1.3f);
+
+	m_World2 = Rotation * Scale;
+
+	XMMATRIX WVP = m_World1 * m_View * m_Projection;
+	ConstantBuffer cb;
+	cb.WVP = XMMatrixTranspose(WVP);
+	m_pImmediateContext->UpdateSubresource(m_pConstantBuffer, 0, NULL, &cb, 0, 0);
+
+	m_pImmediateContext->VSSetShader(m_pVertexShader, NULL, 0);
+	m_pImmediateContext->VSSetConstantBuffers(0, 1, &m_pConstantBuffer);
+	m_pImmediateContext->PSSetShader(m_pPixelShader, NULL, 0);
+	m_pImmediateContext->PSSetShaderResources(0, 1, &m_pTextureRV);
+	m_pImmediateContext->PSSetSamplers(0, 1, &m_pSamplerLinear);
+	m_pImmediateContext->DrawIndexed(36, 0, 0);
+
+	WVP = m_World2 * m_View * m_Projection;
+	cb.WVP = XMMatrixTranspose(WVP);
+	m_pImmediateContext->UpdateSubresource(m_pConstantBuffer, 0, NULL, &cb, 0, 0);
+	m_pImmediateContext->DrawIndexed(36, 0, 0);
+
+	return true;
+}
+*/
+
+
+/*
+bool MyRender::Draw(void)
+{
+	
 	//Update();
 	static float t = 0;					// the current rotation angle
 	static DWORD dwTimeStart = 0;		// time of the scene beginning
@@ -323,7 +487,7 @@ bool MyRender::Draw(void)
 	t = (dwTimeCur - dwTimeStart) / 1000.f;	// calculation of the rotation angle
 
 	m_World = XMMatrixRotationY(t);
-
+	
 
 	XMFLOAT4 vLightDirs[3] = 
 	{
@@ -334,9 +498,9 @@ bool MyRender::Draw(void)
 
 	XMFLOAT4 vLightColors[3] =
 	{
-		XMFLOAT4(0.1f, 0.1f, 0.1f, 1.0f),			// blue colour
-		XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f),			// red colour
-		XMFLOAT4(0.0f, 1.0f, 1.0f, 1.0f),			// green colour
+		XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f),			// blue colour
+		XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f),			// red colour
+		XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f),			// green colour
 	};
 
 	UINT numLightDirs = ARRAYSIZE(vLightDirs);
@@ -401,6 +565,8 @@ bool MyRender::Draw(void)
 
 	return true;
 }
+*/
+
 
 void MyRender::Close(void)
 {
@@ -411,6 +577,9 @@ void MyRender::Close(void)
 	_RELEASE(m_pVertexBuffer);
 	_RELEASE(m_pPixelShader);
 	_RELEASE(m_pVertexBuffer);
+
+	_RELEASE(m_pTextureRV);
+	_RELEASE(m_pSamplerLinear);
 
 	Log::Get()->Debug("MyRender::Close()");
 }

@@ -39,8 +39,6 @@ public:
 	}
 
 private:
-	//Camera* m_camera;
-
 	ID3D11VertexShader* m_pVertexShader;
 	ID3D11PixelShader* m_pPixelShader;
 	ID3D11PixelShader* m_pPixelShaderSolid;
@@ -50,9 +48,13 @@ private:
 	ID3D11Buffer* m_pConstantBuffer;
 	ID3D11Buffer* m_pIndexBuffer;
 
-	XMMATRIX m_World;
+	ID3D11ShaderResourceView* m_pTextureRV;	// save a texture in the memory
+	ID3D11SamplerState* m_pSamplerLinear;	// representation of a texture - filtration, MIP, addressation
+
+	XMMATRIX m_World1;
+	XMMATRIX m_World2;
 	XMMATRIX m_View;
 	XMMATRIX m_Projection;
 
-	
+	float m_rot;
 };

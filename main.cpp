@@ -8,12 +8,12 @@ int main()
 {
 	Framework framework;
 	MyInput* myInput = new MyInput();
-	MyRender* myRender = new MyRender();
-	
-	framework.SetRender(myRender);
+	MyRender* render = new MyRender();
 
+	FrameworkDesc desc;
+	desc.render = render;
 
-	if (framework.Init())
+	if (framework.Init(desc))
 	{
 		framework.AddInputListener(myInput);
 		framework.Run();
